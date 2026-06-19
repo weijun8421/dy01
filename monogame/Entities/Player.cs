@@ -20,9 +20,8 @@ public class Player
     public int RespawnTimer = 0, Invincible = 0, DashCooldown = 0;
     public int Coyote = 0, JumpBuffer = 0;
 
-    // Weapons
-    public int WeaponIdx = 0;
-    public WeaponDef[] Weapons = new WeaponDef[5];
+    // Weapons - single weapon mode
+    public WeaponDef Weapon;
     public int FireCd = 0, Reloading = 0;
 
     // Buffs
@@ -42,37 +41,19 @@ public class Player
     private int _regenTimer = 0;
     private Random _rng = new();
 
-    public WeaponDef Weapon => Weapons[WeaponIdx];
     public float MaxHpActual => MaxHp * BuffHp;
     public float Speed => 3.2f * BuffSpeed;
 
-    public Player(float x, float y, bool isP2)
+    public Player(float x, float y, bool isP2, WeaponDef weapon)
     {
         X = x; Y = y; IsP2 = isP2;
         Color = isP2 ? Config.COLOR_P2 : Config.COLOR_P1;
         SkinColor = Config.COLOR_SKIN;
         HairColor = isP2 ? new Color(17, 85, 170) : new Color(85, 51, 17);
-        for (int i = 0; i < 5; i++) Weapons[i] = Config.WEAPONS[i].Clone();
+        Weapon = weapon.Clone();
     }
 
     public bool IsBerserk => BuffBerserk && Hp < MaxHpActual * 0.3f;
-
-    public void SwitchWeapon(int idx)
-    {
-        if (idx >= 0 && idx < Weapons.Length)
-        {
-            // Complete any pending reload before switching
-            if (Reloading > 0)
-            {
-                int need = Weapon.MaxAmmo - Weapon.Ammo;
-                int take = Math.Min(need, Weapon.Reserve);
-                Weapon.Ammo += take;
-                Weapon.Reserve -= take;
-                Reloading = 0;
-            }
-            WeaponIdx = idx;
-        }
-    }
 
     public void Update(Dictionary<string, bool> keys, Level level, List<Bullet> bullets, ParticleSystem particles, Camera? camera = null)
     {
@@ -192,7 +173,12 @@ public class Player
         }
 
         if (Grounded && WasInAir && Vy > 3)
+        {
+            // Landing dust effect
             particles.SpawnBurst(X, Y + 13, 6, 3, new Color(136, 136, 136), (8, 18), (2, 4), (-3, 0));
+            particles.SpawnBurst(X - 5, Y + 13, 3, 2, new Color(180, 180, 180), (5, 12), (1, 3), (-2, 0));
+            particles.SpawnBurst(X + 5, Y + 13, 3, 2, new Color(180, 180, 180), (5, 12), (1, 3), (-2, 0));
+        }
         WasInAir = !Grounded;
 
         if (Invincible > 0) Invincible--;
@@ -326,6 +312,14 @@ public class Player
         Vx -= MathF.Cos(angle) * (w.Explosive ? 2.5f : 0.8f);
         Vy -= MathF.Sin(angle) * 0.3f;
 
+        // Muzzle flash effect
+        float muzzleX = X + Facing * 20;
+        float muzzleY = Y - 4;
+        particles.Spawn(muzzleX, muzzleY, Facing * 2, 0, Color.White, 3, 8);
+        particles.Spawn(muzzleX, muzzleY, Facing * 1.5f, -0.5f, w.Color, 5, 6);
+        particles.Spawn(muzzleX, muzzleY, Facing * 1.5f, 0.5f, w.Color, 5, 6);
+        particles.Spawn(muzzleX + Facing * 3, muzzleY, Facing * 1, 0, new Color(255, 200, 100), 4, 4);
+
         particles.SpawnBurst(X + Facing * 20, Y - 4, 8, 10, w.Color, (4, 10), (2, 5), (-3, 3));
         camera?.AddShake(w.Explosive ? 10 : 3);
     }
@@ -401,7 +395,7 @@ public class Player
         int f = Facing;
 
         // Shadow
-        sb.Draw(pixel, new Rectangle(sx - 9, sy + 15, 18, 4), new Color(0, 0, 0, 50));
+        sb.Draw(pixel, new Rectangle(sx - 10, sy + 16, 20, 4), new Color(0, 0, 0, 60));
 
         // Leg animation
         int legOff = 0;
@@ -411,56 +405,67 @@ public class Player
         }
         else legOff = -4;
 
-        // Boots (darker, wider)
-        sb.Draw(pixel, new Rectangle(sx - 8 + legOff, sy + 15, 8, 4), new Color(40, 30, 20));
-        sb.Draw(pixel, new Rectangle(sx - 1 - legOff, sy + 15, 8, 4), new Color(40, 30, 20));
-        // Legs (pants)
-        sb.Draw(pixel, new Rectangle(sx - 6 + legOff, sy + 8, 6, 9), new Color(60, 75, 110));
-        sb.Draw(pixel, new Rectangle(sx - legOff, sy + 8, 6, 9), new Color(60, 75, 110));
-        // Knee pads
-        sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 10, 4, 3), new Color(80, 80, 80));
-        sb.Draw(pixel, new Rectangle(sx + 1 - legOff, sy + 10, 4, 3), new Color(80, 80, 80));
+        // === BOOTS (detailed with soles) ===
+        // Left boot
+        sb.Draw(pixel, new Rectangle(sx - 8 + legOff, sy + 14, 7, 5), new Color(50, 40, 30));
+        sb.Draw(pixel, new Rectangle(sx - 9 + legOff, sy + 18, 9, 2), new Color(30, 25, 20)); // sole
+        // Right boot
+        sb.Draw(pixel, new Rectangle(sx + 1 - legOff, sy + 14, 7, 5), new Color(50, 40, 30));
+        sb.Draw(pixel, new Rectangle(sx - legOff, sy + 18, 9, 2), new Color(30, 25, 20)); // sole
 
-        // Body (torso with armor)
-        sb.Draw(pixel, new Rectangle(sx - 9, sy - 10, 18, 20), Color);
-        // Chest plate detail
-        sb.Draw(pixel, new Rectangle(sx - 8, sy - 8, 16, 4), new Color(
-            Math.Max(0, Color.R - 30), Math.Max(0, Color.G - 30), Math.Max(0, Color.B - 30)));
-        // Belt
-        sb.Draw(pixel, new Rectangle(sx - 9, sy + 6, 18, 3), new Color(60, 45, 25));
-        // Belt buckle
-        sb.Draw(pixel, new Rectangle(sx - 3, sy + 6, 6, 3), new Color(200, 170, 50));
+        // === LEGS (pants with knee pads) ===
+        // Left leg
+        sb.Draw(pixel, new Rectangle(sx - 7 + legOff, sy + 7, 6, 8), new Color(55, 70, 100));
+        sb.Draw(pixel, new Rectangle(sx - 6 + legOff, sy + 9, 4, 3), new Color(75, 75, 75)); // knee pad
+        // Right leg
+        sb.Draw(pixel, new Rectangle(sx + 1 - legOff, sy + 7, 6, 8), new Color(55, 70, 100));
+        sb.Draw(pixel, new Rectangle(sx + 2 - legOff, sy + 9, 4, 3), new Color(75, 75, 75)); // knee pad
+
+        // === BELT with buckle ===
+        sb.Draw(pixel, new Rectangle(sx - 9, sy + 5, 18, 3), new Color(70, 50, 30));
+        sb.Draw(pixel, new Rectangle(sx - 3, sy + 5, 6, 3), new Color(210, 180, 60)); // buckle
+
+        // === BODY (tactical vest with details) ===
+        sb.Draw(pixel, new Rectangle(sx - 9, sy - 10, 18, 16), Color);
+        // Vest stripes (horizontal details)
+        var vestDark = new Color(Math.Max(0, Color.R - 35), Math.Max(0, Color.G - 35), Math.Max(0, Color.B - 35));
+        sb.Draw(pixel, new Rectangle(sx - 8, sy - 8, 16, 2), vestDark);
+        sb.Draw(pixel, new Rectangle(sx - 8, sy - 3, 16, 2), vestDark);
+        sb.Draw(pixel, new Rectangle(sx - 8, sy + 2, 16, 2), vestDark);
+        
         // Shoulder pads
-        sb.Draw(pixel, new Rectangle(sx - 10, sy - 9, 4, 5), new Color(
-            Math.Max(0, Color.R - 40), Math.Max(0, Color.G - 40), Math.Max(0, Color.B - 40)));
-        sb.Draw(pixel, new Rectangle(sx + 6, sy - 9, 4, 5), new Color(
-            Math.Max(0, Color.R - 40), Math.Max(0, Color.G - 40), Math.Max(0, Color.B - 40)));
+        var shoulderColor = new Color(Math.Max(0, Color.R - 45), Math.Max(0, Color.G - 45), Math.Max(0, Color.B - 45));
+        sb.Draw(pixel, new Rectangle(sx - 11, sy - 9, 4, 6), shoulderColor);
+        sb.Draw(pixel, new Rectangle(sx + 7, sy - 9, 4, 6), shoulderColor);
 
-        // Head
-        sb.Draw(pixel, new Rectangle(sx - 6, sy - 20, 12, 12), SkinColor);
-        // Helmet/hair
-        sb.Draw(pixel, new Rectangle(sx - 8, sy - 23, 16, 5), HairColor);
-        sb.Draw(pixel, new Rectangle(sx - 8, sy - 20, 4, 8), HairColor);
-        sb.Draw(pixel, new Rectangle(sx + 4, sy - 20, 4, 8), HairColor);
-        // Visor/goggles
-        sb.Draw(pixel, new Rectangle(sx + f * 2 - 4, sy - 16, 9, 4), new Color(30, 30, 30));
-        // Eye glow
-        sb.Draw(pixel, new Rectangle(sx + f * 2, sy - 15, 3, 2), new Color(200, 255, 200));
+        // === HEAD (detailed face) ===
+        // Head base
+        sb.Draw(pixel, new Rectangle(sx - 6, sy - 21, 12, 12), SkinColor);
+        
+        // Hair/helmet
+        sb.Draw(pixel, new Rectangle(sx - 8, sy - 24, 16, 5), HairColor);
+        sb.Draw(pixel, new Rectangle(sx - 8, sy - 21, 4, 9), HairColor); // left side
+        sb.Draw(pixel, new Rectangle(sx + 4, sy - 21, 4, 9), HairColor); // right side
+        
+        // Eyes (two separate eyes)
+        sb.Draw(pixel, new Rectangle(sx - 4 + f, sy - 17, 3, 2), new Color(20, 20, 20));
+        sb.Draw(pixel, new Rectangle(sx + 1 + f, sy - 17, 3, 2), new Color(20, 20, 20));
+        // Eye highlights
+        sb.Draw(pixel, new Rectangle(sx - 3 + f, sy - 17, 1, 1), new Color(220, 255, 220));
+        sb.Draw(pixel, new Rectangle(sx + 2 + f, sy - 17, 1, 1), new Color(220, 255, 220));
+        
         // Mouth
-        sb.Draw(pixel, new Rectangle(sx + f * 2, sy - 11, 4, 2), new Color(180, 130, 100));
+        sb.Draw(pixel, new Rectangle(sx - 2 + f, sy - 12, 5, 2), new Color(160, 110, 80));
 
-        // Arm + weapon
-        sb.Draw(pixel, new Rectangle(sx + f * 10, sy - 10, 5, 10), SkinColor);
+        // === ARM holding weapon ===
+        sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 10, 5, 11), SkinColor);
         // Glove
-        sb.Draw(pixel, new Rectangle(sx + f * 10, sy - 3, 5, 3), new Color(50, 50, 50));
-        // Weapon body
-        int wx = sx + f * 15;
-        sb.Draw(pixel, new Rectangle(wx - 4, sy - 6, 10, 5), new Color(90, 90, 90));
-        // Weapon barrel
-        sb.Draw(pixel, new Rectangle(wx + f * 5, sy - 5, 6, 4), new Color(60, 60, 60));
-        // Weapon detail
-        sb.Draw(pixel, new Rectangle(wx - 1, sy - 8, 4, 2), new Color(120, 120, 120));
+        sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 2, 5, 3), new Color(45, 45, 45));
+        
+        // === WEAPON (type-specific) ===
+        DrawWeapon(sb, pixel, sx, sy, f);
 
+        // === EFFECTS ===
         // Berserk aura
         if (IsBerserk)
         {
@@ -473,6 +478,97 @@ public class Player
         {
             var shieldColor = new Color(100, 200, 255, 60);
             DrawCircle(sb, pixel, sx, sy - 2, 20, shieldColor);
+        }
+    }
+
+    private void DrawWeapon(SpriteBatch sb, Texture2D pixel, int sx, int sy, int f)
+    {
+        int wx = sx + f * 14;
+        int wy = sy - 6;
+        string weaponId = Weapon.Id;
+
+        // Helper function to draw rectangles with proper facing direction
+        void DrawRect(int x, int y, int w, int h, Color color)
+        {
+            if (w < 0) { x += w; w = -w; }
+            sb.Draw(pixel, new Rectangle(x, y, w, h), color);
+        }
+
+        switch (weaponId)
+        {
+            case "rifle": // Assault Rifle - M16 style
+                // Barrel
+                DrawRect(wx, wy + 1, f * 14, 3, new Color(80, 80, 80));
+                // Body
+                DrawRect(wx - f * 2, wy, f * 10, 5, new Color(100, 100, 100));
+                // Magazine
+                DrawRect(wx + f * 2, wy + 5, 3, 6, new Color(60, 60, 60));
+                DrawRect(wx + f * 1, wy + 10, 5, 2, new Color(50, 50, 50));
+                // Stock
+                DrawRect(wx - f * 6, wy + 1, f * 6, 4, new Color(90, 65, 40));
+                // Sight
+                DrawRect(wx + f * 4, wy - 2, 3, 2, new Color(120, 120, 120));
+                break;
+
+            case "shotgun": // Pump Shotgun
+                // Barrel (longer)
+                DrawRect(wx, wy + 1, f * 18, 4, new Color(85, 85, 85));
+                // Pump handle
+                DrawRect(wx + f * 6, wy - 1, f * 6, 2, new Color(110, 110, 110));
+                // Body (wooden)
+                DrawRect(wx - f * 3, wy, f * 12, 6, new Color(140, 90, 50));
+                // Stock (wooden)
+                DrawRect(wx - f * 8, wy + 1, f * 8, 5, new Color(120, 75, 40));
+                // Trigger guard
+                DrawRect(wx + f * 1, wy + 6, 2, 3, new Color(70, 70, 70));
+                break;
+
+            case "flame": // Flamethrower
+                // Nozzle
+                DrawRect(wx, wy, f * 8, 5, new Color(70, 70, 70));
+                DrawRect(wx + f * 8, wy + 1, f * 4, 3, new Color(90, 90, 90));
+                // Fuel tank (backpack style)
+                DrawRect(wx - f * 6, wy - 2, f * 8, 8, new Color(180, 60, 40));
+                DrawRect(wx - f * 5, wy - 1, f * 6, 6, new Color(200, 80, 50));
+                // Hose
+                DrawRect(wx - f * 2, wy + 4, f * 4, 2, new Color(60, 60, 60));
+                // Handle
+                DrawRect(wx + f * 2, wy + 5, 3, 4, new Color(50, 50, 50));
+                break;
+
+            case "laser": // Laser Gun
+                // Barrel (sleek)
+                DrawRect(wx, wy + 1, f * 16, 3, new Color(60, 180, 220));
+                DrawRect(wx + f * 14, wy, f * 3, 5, new Color(80, 200, 240));
+                // Body
+                DrawRect(wx - f * 2, wy, f * 10, 5, new Color(50, 150, 200));
+                // Energy core
+                DrawRect(wx + f * 3, wy + 1, 4, 3, new Color(150, 240, 255));
+                // Stock
+                DrawRect(wx - f * 6, wy + 1, f * 5, 4, new Color(40, 120, 170));
+                // Sight
+                DrawRect(wx + f * 6, wy - 2, 2, 2, new Color(200, 255, 255));
+                break;
+
+            case "rocket": // Rocket Launcher
+                // Launch tube
+                DrawRect(wx, wy, f * 20, 6, new Color(80, 110, 60));
+                DrawRect(wx + f * 18, wy - 1, f * 3, 8, new Color(100, 130, 75));
+                // Rocket tip visible
+                DrawRect(wx + f * 2, wy + 1, f * 8, 4, new Color(180, 50, 50));
+                // Handle
+                DrawRect(wx + f * 10, wy + 6, 3, 5, new Color(60, 60, 60));
+                // Sight
+                DrawRect(wx + f * 12, wy - 2, 4, 2, new Color(90, 90, 90));
+                // Back cap
+                DrawRect(wx - f * 2, wy + 1, f * 3, 5, new Color(70, 70, 70));
+                break;
+
+            default: // Generic weapon
+                DrawRect(wx - 4, wy, 10, 5, new Color(90, 90, 90));
+                DrawRect(wx + f * 5, wy + 1, 6, 4, new Color(60, 60, 60));
+                DrawRect(wx - 1, wy - 2, 4, 2, new Color(120, 120, 120));
+                break;
         }
     }
 

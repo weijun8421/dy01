@@ -161,7 +161,7 @@ public class MenuScreen
 
 public class HUD
 {
-    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName, int combo = 0, float comboMultiplier = 1f, Level? level = null)
+    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName, int combo = 0, float comboMultiplier = 1f, Level? level = null, List<Enemy>? enemies = null)
     {
         var sb = renderer.SpriteBatch;
         var font = renderer.Font;
@@ -215,42 +215,25 @@ public class HUD
             renderer.DrawString(multText, new Vector2(Config.W - 100, 56), new Color(255, 220, 100, comboAlpha), 0.9f * pulse);
         }
 
-        // Weapon bar with enhanced styling
+        // Single weapon display
         if (player != null)
         {
-            int ww = 300, wh = 40;
+            int ww = 200, wh = 50;
             int wx0 = Config.W / 2 - ww / 2;
-            int wy0 = Config.H - 54;
+            int wy0 = Config.H - 60;
 
             // Background with gradient
             renderer.DrawRect(new Color(0, 0, 0, 230), wx0, wy0, ww, wh);
             renderer.DrawRect(Config.COLOR_GOLD, wx0, wy0, ww, 2);
             renderer.DrawRect(new Color(255, 170, 0, 100), wx0, wy0 + wh - 2, ww, 2);
 
-            for (int i = 0; i < 5; i++)
-            {
-                int boxX = wx0 + 8 + i * 58;
-                var wp = player.Weapons[i];
-                bool sel = player.WeaponIdx == i;
-
-                if (sel)
-                {
-                    // Selected weapon glow effect
-                    renderer.DrawRect(new Color(255, 170, 0, 60), boxX, wy0 + 5, 52, 30);
-                    renderer.DrawRect(Config.COLOR_GOLD, boxX, wy0 + 2, 52, 2);
-                    renderer.DrawRect(new Color(255, 170, 0, 150), boxX, wy0 + 33, 52, 2);
-                }
-
-                var borderC = sel ? Config.COLOR_GOLD : new Color(68, 68, 68);
-                renderer.DrawRect(borderC, boxX, wy0 + 5, 52, 30);
-
-                renderer.DrawString($"{i + 1}", new Vector2(boxX + 4, wy0 + 10), Color.White, 0.8f);
-                renderer.DrawString(wp.Icon, new Vector2(boxX + 20, wy0 + 8), Color.White, 0.8f);
-                renderer.DrawString($"{wp.Ammo}", new Vector2(boxX + 36, wy0 + 12), Color.White, 0.7f);
-
-                if (sel)
-                    renderer.DrawStringCentered(player.Weapon.Name, new Vector2(Config.W / 2f, wy0 + 36), new Color(255, 220, 100), 0.8f);
-            }
+            // Weapon icon and name
+            renderer.DrawString(player.Weapon.Icon, new Vector2(wx0 + 10, wy0 + 8), player.Weapon.Color, 1.2f);
+            renderer.DrawString(player.Weapon.Name, new Vector2(wx0 + 40, wy0 + 10), Color.White, 1f);
+            
+            // Ammo display
+            string ammoText = $"{player.Weapon.Ammo} / {player.Weapon.Reserve}";
+            renderer.DrawString(ammoText, new Vector2(wx0 + 40, wy0 + 30), new Color(255, 220, 100), 0.9f);
         }
 
         // P2 HUD with enhanced styling
@@ -266,11 +249,73 @@ public class HUD
             renderer.DrawString($"P2 HP {(int)player2.Hp}", new Vector2(Config.W - 196, Config.H - 88), Color.White, 0.8f);
         }
 
+        // Boss HP bar
+        if (enemies != null)
+        {
+            DrawBossHP(renderer, enemies);
+        }
+
         // Minimap
         if (level != null && player != null)
         {
             DrawMinimap(renderer, player, player2, level);
         }
+    }
+
+    private void DrawBossHP(Renderer renderer, List<Enemy> enemies)
+    {
+        // Find boss enemy
+        Enemy? boss = null;
+        foreach (var e in enemies)
+        {
+            if (e.Type == "boss")
+            {
+                boss = e;
+                break;
+            }
+        }
+
+        if (boss == null) return;
+
+        // Boss HP bar at top center
+        int barW = 400;
+        int barH = 20;
+        int barX = Config.W / 2 - barW / 2;
+        int barY = 60;
+
+        // Background with gradient
+        renderer.DrawRect(new Color(0, 0, 0, 200), barX - 4, barY - 4, barW + 8, barH + 8);
+        
+        // Animated border
+        float time = (float)Environment.TickCount / 1000f;
+        int borderAlpha = (int)(150 + Math.Sin(time * 3) * 50);
+        renderer.DrawRect(new Color(255, 50, 50, borderAlpha), barX - 4, barY - 4, barW + 8, 2);
+        renderer.DrawRect(new Color(255, 50, 50, borderAlpha), barX - 4, barY + barH + 2, barW + 8, 2);
+        renderer.DrawRect(new Color(255, 50, 50, borderAlpha), barX - 4, barY - 4, 2, barH + 8);
+        renderer.DrawRect(new Color(255, 50, 50, borderAlpha), barX + barW + 2, barY - 4, 2, barH + 8);
+
+        // HP bar background
+        renderer.DrawRect(new Color(40, 0, 0), barX, barY, barW, barH);
+
+        // HP bar fill with gradient
+        float hpRatio = boss.Hp / boss.MaxHp;
+        int fillW = (int)(barW * hpRatio);
+        
+        // Main fill
+        var hpColor = hpRatio > 0.3f ? new Color(200, 50, 50) : new Color(255, 100, 0);
+        renderer.DrawRect(hpColor, barX, barY, fillW, barH);
+        
+        // Highlight
+        renderer.DrawRect(new Color(255, 255, 255, 60), barX, barY, fillW, 4);
+        
+        // Shadow
+        renderer.DrawRect(new Color(0, 0, 0, 80), barX, barY + barH - 4, fillW, 4);
+
+        // Boss name
+        renderer.DrawStringCentered("BOSS", new Vector2(Config.W / 2f, barY - 18), new Color(255, 100, 100), 1.2f);
+
+        // HP text
+        renderer.DrawStringCentered($"{(int)boss.Hp} / {(int)boss.MaxHp}", new Vector2(Config.W / 2f, barY + 2), Color.White, 0.9f);
     }
 
     private void DrawMinimap(Renderer renderer, Player player, Player? player2, Level level)
@@ -296,7 +341,7 @@ public class HUD
         {
             for (int x = 0; x < level.W; x++)
             {
-                if (level.Tiles[x][y].Solid)
+                if (level.Tiles[y][x].Solid)
                 {
                     int px = mapX + (int)(x * Config.TILE * scaleX);
                     int py = mapY + (int)(y * Config.TILE * scaleY);
@@ -324,6 +369,162 @@ public class HUD
             int p2Y = mapY + (int)(player2.Y * scaleY);
             renderer.DrawRect(new Color(50, 150, 255, 255), p2X - 2, p2Y - 2, 4, 4);
         }
+    }
+}
+
+public class WeaponSelectScreen
+{
+    public int Selected = 0;
+    public float Anim = 0;
+    private List<(float x, float y, float speed, int size, int brightness)> _stars = new();
+    private Random _rng = new();
+
+    public WeaponSelectScreen()
+    {
+        for (int i = 0; i < 60; i++)
+            _stars.Add((_rng.Next(0, Config.W), _rng.Next(0, Config.H),
+                (float)(_rng.NextDouble() * 0.5f + 0.1f),
+                _rng.Next(1, 3), _rng.Next(30, 120)));
+    }
+
+    public void Update()
+    {
+        Anim += 0.016f;
+        for (int i = 0; i < _stars.Count; i++)
+        {
+            var s = _stars[i];
+            s.y += s.speed;
+            if (s.y > Config.H) { s.y = -5; s.x = _rng.Next(0, Config.W); }
+            _stars[i] = s;
+        }
+    }
+
+    public void MoveUp()
+    {
+        Selected = (Selected - 1 + Config.WEAPONS.Length) % Config.WEAPONS.Length;
+        AudioManager.MenuMove();
+    }
+
+    public void MoveDown()
+    {
+        Selected = (Selected + 1) % Config.WEAPONS.Length;
+        AudioManager.MenuMove();
+    }
+
+    public WeaponDef Confirm()
+    {
+        AudioManager.MenuSelect();
+        return Config.WEAPONS[Selected];
+    }
+
+    public void Draw(Renderer renderer)
+    {
+        var sb = renderer.SpriteBatch;
+        var font = renderer.Font;
+        var pixel = renderer.Pixel;
+
+        // Background gradient
+        for (int y = 0; y < Config.H; y++)
+        {
+            float t = y / (float)Config.H;
+            int r = (int)(10 + t * 15);
+            int g = (int)(10 + t * 10);
+            int b = (int)(25 + t * 20);
+            renderer.DrawRect(new Color(r, g, b), 0, y, Config.W, 1);
+        }
+
+        // Stars
+        foreach (var s in _stars)
+        {
+            float twinkle = (float)Math.Sin(Anim * 2 + s.x * 0.1f) * 0.3f + 0.7f;
+            int brightness = (int)(s.brightness * twinkle);
+            var sc = new Color(brightness, brightness, Math.Min(255, brightness + 30));
+            renderer.DrawRect(sc, (int)s.x, (int)s.y, s.size, s.size);
+        }
+
+        // Title
+        renderer.DrawStringCentered("选择武器", new Vector2(Config.W / 2f, 40), new Color(255, 51, 51), 1.8f);
+        renderer.DrawStringCentered("使用 ↑↓ 或 W/S 选择，按 Enter 确认", new Vector2(Config.W / 2f, 80), new Color(180, 180, 180), 0.9f);
+
+        // Weapon cards
+        int cardW = 160;
+        int cardH = 200;
+        int spacing = 20;
+        int totalW = Config.WEAPONS.Length * cardW + (Config.WEAPONS.Length - 1) * spacing;
+        int startX = Config.W / 2 - totalW / 2;
+        int cardY = 140;
+
+        for (int i = 0; i < Config.WEAPONS.Length; i++)
+        {
+            var w = Config.WEAPONS[i];
+            float x = startX + i * (cardW + spacing);
+            bool isSelected = i == Selected;
+            
+            // Card animation
+            float targetY = cardY + (isSelected ? -10 : 0);
+            float currentY = targetY;
+
+            // Shadow
+            renderer.DrawRect(new Color(0, 0, 0, isSelected ? 120 : 60), (int)x + 3, (int)currentY + 3, cardW, cardH);
+
+            // Card background
+            Color bgColor = isSelected ? new Color(40, 40, 60) : new Color(25, 25, 40);
+            renderer.DrawRect(bgColor, (int)x, (int)currentY, cardW, cardH);
+
+            // Border
+            Color borderColor = isSelected ? w.Color : new Color(80, 80, 80);
+            int borderWidth = isSelected ? 3 : 1;
+            renderer.DrawRect(borderColor, (int)x, (int)currentY, cardW, borderWidth);
+            renderer.DrawRect(borderColor, (int)x, (int)currentY + cardH - borderWidth, cardW, borderWidth);
+            renderer.DrawRect(borderColor, (int)x, (int)currentY, borderWidth, cardH);
+            renderer.DrawRect(borderColor, (int)x + cardW - borderWidth, (int)currentY, borderWidth, cardH);
+
+            // Weapon icon
+            renderer.DrawStringCentered(w.Icon, new Vector2(x + cardW / 2f, currentY + 30), w.Color, 1.5f);
+
+            // Weapon name
+            renderer.DrawStringCentered(w.Name, new Vector2(x + cardW / 2f, currentY + 70), Color.White, 1.1f);
+
+            // Stats
+            float statY = currentY + 100;
+            float lineSpacing = 22;
+            
+            renderer.DrawStringCentered($"伤害: {(int)w.Damage}", new Vector2(x + cardW / 2f, statY), new Color(200, 200, 200), 0.8f);
+            statY += lineSpacing;
+            renderer.DrawStringCentered($"射速: {60 / w.FireRate:F1}/s", new Vector2(x + cardW / 2f, statY), new Color(200, 200, 200), 0.8f);
+            statY += lineSpacing;
+            renderer.DrawStringCentered($"弹匣: {w.MaxAmmo}", new Vector2(x + cardW / 2f, statY), new Color(200, 200, 200), 0.8f);
+            statY += lineSpacing;
+            
+            string special = w.Explosive ? "爆炸" : (w.Pierce ? "穿透" : (w.Pellets > 1 ? "散射" : "单发"));
+            renderer.DrawStringCentered(special, new Vector2(x + cardW / 2f, statY), w.Color, 0.8f);
+
+            // Selection indicator
+            if (isSelected)
+            {
+                float pulse = (float)Math.Sin(Anim * 4) * 0.3f + 0.7f;
+                Color glowColor = new Color(w.Color.R, w.Color.G, w.Color.B, (int)(pulse * 80));
+                renderer.DrawRect(glowColor, (int)x - 2, (int)currentY - 2, cardW + 4, cardH + 4);
+                
+                renderer.DrawStringCentered(">", new Vector2(x + cardW / 2f, currentY - 20), w.Color, 1.2f);
+            }
+        }
+
+        // Weapon description at bottom
+        var selectedWeapon = Config.WEAPONS[Selected];
+        string desc = selectedWeapon.Id switch
+        {
+            "rifle" => "均衡的全自动武器，适合中距离战斗",
+            "shotgun" => "近距离爆发伤害，多弹丸散射",
+            "flame" => "持续灼烧伤害，穿透敌人",
+            "laser" => "高精度高伤害，穿透所有目标",
+            "rocket" => "爆炸范围伤害，适合群体敌人",
+            _ => ""
+        };
+        renderer.DrawStringCentered(desc, new Vector2(Config.W / 2f, 380), selectedWeapon.Color, 1f);
+
+        // Key hints
+        renderer.DrawStringCentered("↑/W  上移    ↓/S  下移    Enter  确认", new Vector2(Config.W / 2f, 430), new Color(150, 150, 150), 0.9f);
     }
 }
 

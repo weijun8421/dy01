@@ -207,6 +207,9 @@ public class Enemy
         Flash = 6;
         _aggro = true;
         
+        // 显示伤害数字
+        particles.SpawnText(X, Y - H / 2f - 10, $"{(int)dmg}", new Color(255, 220, 100), 14);
+        
         // Knockback
         if (knockbackDir != 0)
         {

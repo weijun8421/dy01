@@ -7,6 +7,8 @@ public class InputManager
 {
     private KeyboardState _current;
     private KeyboardState _previous;
+    private MouseState _mouseCurrent;
+    private MouseState _mousePrevious;
     internal Dictionary<string, bool> KeyStates => _keyStates;
     private Dictionary<string, bool> _keyStates = new();
     private Dictionary<string, bool> _prev = new();
@@ -16,6 +18,8 @@ public class InputManager
     {
         _previous = _current;
         _current = Keyboard.GetState();
+        _mousePrevious = _mouseCurrent;
+        _mouseCurrent = Mouse.GetState();
         _prev = new Dictionary<string, bool>(_keyStates);
 
         _keyStates["p1_left"] = _current.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.A) || _current.IsKeyDown(Microsoft.Xna.Framework.Input.Keys.Left);
@@ -70,5 +74,13 @@ public class InputManager
             _weaponSwitchPrev[key] = down;
         }
         return result;
+    }
+
+    public int GetMouseWheelSwitch()
+    {
+        int delta = _mouseCurrent.ScrollWheelValue - _mousePrevious.ScrollWheelValue;
+        if (delta > 0) return 1;  // Scroll up
+        if (delta < 0) return -1; // Scroll down
+        return 0;
     }
 }

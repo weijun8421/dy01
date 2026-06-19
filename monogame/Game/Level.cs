@@ -133,18 +133,51 @@ public class Level
             Tiles.Add(row);
         }
 
-        // Ground profile - smoother terrain with gentle hills
+        // Ground profile - more varied terrain with valleys and peaks
         var groundProfile = new int[W];
         int currentH = gy;
+        int valleyStart = -1;
+        int peakStart = -1;
+        
         for (int x = 0; x < W; x++)
         {
-            if (x > 8 && x < W - 8 && _rng.NextDouble() < 0.04)
+            // Create valleys (deep pits)
+            if (x > 15 && x < W - 15 && valleyStart == -1 && _rng.NextDouble() < 0.015)
+            {
+                valleyStart = x;
+            }
+            if (valleyStart >= 0 && x - valleyStart < 8)
+            {
+                currentH = Math.Min(gy + 2, currentH + 1);
+            }
+            else if (valleyStart >= 0 && x - valleyStart >= 8)
+            {
+                valleyStart = -1;
+            }
+            
+            // Create peaks (raised areas)
+            if (x > 15 && x < W - 15 && peakStart == -1 && _rng.NextDouble() < 0.012)
+            {
+                peakStart = x;
+            }
+            if (peakStart >= 0 && x - peakStart < 6)
+            {
+                currentH = Math.Max(gy - 3, currentH - 1);
+            }
+            else if (peakStart >= 0 && x - peakStart >= 6)
+            {
+                peakStart = -1;
+            }
+            
+            // Normal variation
+            if (valleyStart < 0 && peakStart < 0 && x > 8 && x < W - 8 && _rng.NextDouble() < 0.04)
             {
                 int change = _rng.Next(3) - 1;
                 currentH = Math.Clamp(currentH + change, gy - 2, gy + 1);
             }
             groundProfile[x] = currentH;
         }
+        
         // Flat area near exit
         for (int x = exitTile - 4; x < W; x++)
             groundProfile[x] = gy;
@@ -160,6 +193,29 @@ public class Level
                 Tiles[y][x] = new TileData { Type = bedrock ? "bedrock" : "ground", Solid = true, HP = bedrock ? 999 : 5, X = x, Y = y };
             }
 
+        // Add caves (underground chambers)
+        int caveCount = 2 + lv / 3;
+        for (int i = 0; i < caveCount; i++)
+        {
+            int cx = _rng.Next(20, W - 20);
+            int cyMin = Math.Min(gy + 2, H - 5);
+            int cyMax = Math.Max(cyMin + 1, H - 4);
+            int cy = _rng.Next(cyMin, cyMax);
+            int cw = _rng.Next(5, 10);
+            int ch = _rng.Next(3, 6);
+            
+            for (int y = cy; y < cy + ch && y < H - 2; y++)
+            {
+                for (int x = cx; x < cx + cw && x < W; x++)
+                {
+                    if (Tiles[y][x].Type == "ground")
+                    {
+                        Tiles[y][x] = new TileData { Type = "air", Solid = false, HP = 0, X = x, Y = y };
+                    }
+                }
+            }
+        }
+
         // Stairs - ensure reachable platforms
         int maxJumpTiles = 3;
         var stairZones = new List<int>();
@@ -173,14 +229,14 @@ public class Level
             MakeStairs(zx, gy, groundProfile, maxJumpTiles, lv);
         }
 
-        // Floating platforms - thicker with staircase access
-        for (int i = 0; i < 12 + lv * 2; i++)
+        // Floating platforms - varied heights and sizes
+        for (int i = 0; i < 15 + lv * 2; i++)
         {
             int px = _rng.Next(8, W - 12);
             int baseY = groundProfile[Math.Min(px, groundProfile.Length - 1)];
-            int py = baseY - _rng.Next(2, maxJumpTiles + 2);
+            int py = baseY - _rng.Next(2, maxJumpTiles + 3);
             if (py < 3) continue;
-            int pw = _rng.Next(5, 10);
+            int pw = _rng.Next(4, 9);
             if (px + pw > exitTile - 3) px = Math.Max(8, exitTile - 3 - pw);
 
             bool valid = true;
@@ -189,8 +245,8 @@ public class Level
             
             if (valid && py > 3)
             {
-                // Create thicker platforms (2-3 layers)
-                int thickness = _rng.Next(2, 4);
+                // Create platforms with varied thickness (1-3 layers)
+                int thickness = _rng.Next(1, 4);
                 for (int layer = 0; layer < thickness; layer++)
                 {
                     int layerY = py + layer;
@@ -224,23 +280,60 @@ public class Level
             }
         }
 
-        // Walls - cover positions
-        for (int i = 0; i < 5 + lv / 2; i++)
+        // Walls - cover positions and vertical barriers
+        for (int i = 0; i < 6 + lv / 2; i++)
         {
             int wx = _rng.Next(12, W - 15);
             if (Math.Abs(wx - exitTile) < 6) continue;
             int baseY = groundProfile[Math.Min(wx, groundProfile.Length - 1)];
-            int wy = baseY - _rng.Next(2, 5);
-            int wh = Math.Min(_rng.Next(2, 5), baseY - wy);
+            int wy = baseY - _rng.Next(2, 6);
+            int wh = Math.Min(_rng.Next(2, 6), baseY - wy);
             if (wh < 2) continue;
+            int wallWidth = _rng.Next(1, 3); // 1-2 tiles wide
+            
             for (int y = wy; y < wy + wh; y++)
             {
-                if (y >= 0 && y < H && wx < W)
+                for (int w = 0; w < wallWidth; w++)
                 {
-                    if (!Tiles[y][wx].Solid)
-                        Tiles[y][wx] = new TileData { Type = "wall", Solid = true, HP = 5, X = wx, Y = y };
-                    if (wx + 1 < W && !Tiles[y][wx + 1].Solid)
-                        Tiles[y][wx + 1] = new TileData { Type = "wall", Solid = true, HP = 5, X = wx + 1, Y = y };
+                    int wallX = wx + w;
+                    if (y >= 0 && y < H && wallX < W)
+                    {
+                        if (!Tiles[y][wallX].Solid)
+                            Tiles[y][wallX] = new TileData { Type = "wall", Solid = true, HP = 5, X = wallX, Y = y };
+                    }
+                }
+            }
+        }
+
+        // Add bridges over valleys
+        for (int x = 15; x < W - 15; x++)
+        {
+            if (groundProfile[x] > gy + 1) // Found a valley
+            {
+                // Check if we need a bridge
+                bool hasBridge = false;
+                for (int bx = x - 3; bx <= x + 3; bx++)
+                {
+                    if (bx >= 0 && bx < W && groundProfile[bx] <= gy)
+                    {
+                        hasBridge = true;
+                        break;
+                    }
+                }
+                
+                if (!hasBridge && _rng.NextDouble() < 0.7)
+                {
+                    // Create bridge
+                    int bridgeY = gy;
+                    int bridgeLength = _rng.Next(5, 9);
+                    for (int bx = x; bx < Math.Min(x + bridgeLength, W); bx++)
+                    {
+                        if (!Tiles[bridgeY][bx].Solid)
+                        {
+                            Tiles[bridgeY][bx] = new TileData { Type = "plat", Solid = true, HP = 3, X = bx, Y = bridgeY };
+                        }
+                    }
+                    x += bridgeLength; // Skip past the bridge
                 }
             }
         }

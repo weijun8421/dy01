@@ -21,16 +21,22 @@ public static class BuffSystem
             _ => new[] { 0.10f, 0.20f, 0.28f, 0.25f, 0.17f },
         };
 
-        var weaponIds = new List<string>();
-        if (player != null)
-            foreach (var w in player.Weapons)
-                weaponIds.Add(w.Id);
+        // 获取玩家当前武器ID（单武器模式）
+        string? currentWeaponId = player?.Weapon.Id;
 
         var pool = new List<BuffDef>();
         foreach (var b in Config.BUFFS)
         {
-            if (b.Weapon == null) pool.Add(b);
-            else if (weaponIds.Contains(b.Weapon)) pool.Add(b);
+            // 通用Buff始终可用
+            if (b.Weapon == null) 
+            {
+                pool.Add(b);
+            }
+            // 武器专属Buff只在持有对应武器时可用
+            else if (currentWeaponId != null && b.Weapon == currentWeaponId) 
+            {
+                pool.Add(b);
+            }
         }
 
         var tierPools = new Dictionary<int, List<BuffDef>>();
@@ -76,46 +82,92 @@ public static class BuffSystem
     {
         switch (buff.Id)
         {
+            // 通用Buff
             case "dmg": player.BuffDmg += 0.20f; break;
             case "spd": player.BuffSpeed += 0.15f; break;
             case "hp": player.BuffHp += 0.25f; break;
             case "regen": player.BuffRegen += 1; break;
-            case "ammo_bag":
-                foreach (var w in player.Weapons) w.Reserve = (int)(w.Reserve * 1.5f);
-                break;
+            case "ammo_bag": player.Weapon.Reserve = (int)(player.Weapon.Reserve * 1.5f); break;
             case "fir": player.BuffFireRate += 0.25f; break;
             case "vmp": player.BuffVampire += 5; break;
-            case "grenade": player.BuffExplosion += 0.40f; break;
+            case "prc": player.BuffPierce = true; break;
+            case "dbl": player.BuffDouble = true; break;
+            case "crit": player.BuffCritChance += 0.15f; break;
+            case "bsk": player.BuffBerserk = true; break;
+            case "shield": player.BuffShield = true; player.ShieldCd = 0; break;
+            case "reload_all": player.BuffReloadSpeed += 0.60f; break;
+            case "god": player.BuffDmg += 0.80f; player.BuffSpeed += 0.30f; break;
+            case "inf_ammo": player.BuffInfAmmo = true; break;
+            case "death_blow": player.BuffDeathBlow = true; break;
+
+            // 突击步枪专属
             case "rifle_dmg":
                 if (!player.BuffWeaponDmg.ContainsKey("rifle")) player.BuffWeaponDmg["rifle"] = 0;
                 player.BuffWeaponDmg["rifle"] += 0.35f;
                 break;
-            case "sg_wide": player.BuffSgPellets += 3; break;
-            case "flame_burn": player.BuffBurn = true; break;
-            case "laser_beam": player.BuffLaserBeam = true; break;
-            case "prc": player.BuffPierce = true; break;
-            case "dbl": player.BuffDouble = true; break;
-            case "crit": player.BuffCritChance += 0.15f; break;
+            case "rifle_speed": player.BuffFireRate += 0.30f; break;
             case "rifle_burst": player.BuffBurst = true; break;
-            case "sg_slug": player.BuffSlug = true; break;
-            case "flame_wave": player.BuffFlameRange += 0.60f; break;
-            case "laser_chain": player.BuffChain = true; break;
-            case "rocket_cluster": player.BuffCluster = true; break;
-            case "bsk": player.BuffBerserk = true; break;
-            case "shield": player.BuffShield = true; player.ShieldCd = 0; break;
-            case "reload_all": player.BuffReloadSpeed += 0.60f; break;
+            case "rifle_pierce": player.BuffPierce = true; break;
             case "rifle_turret": player.BuffTurret = true; break;
+            case "rifle_crit": player.BuffCritChance += 0.25f; break;
+            case "rifle_hypershot": player.BuffFireRate += 0.60f; player.BuffDmg += 0.40f; break;
+            case "rifle_gauss": 
+                player.Weapon.BulletSpeed *= 2;
+                if (!player.BuffWeaponDmg.ContainsKey("rifle")) player.BuffWeaponDmg["rifle"] = 0;
+                player.BuffWeaponDmg["rifle"] += 0.80f;
+                break;
+
+            // 霰弹枪专属
+            case "sg_wide": player.BuffSgPellets += 3; break;
+            case "sg_dmg":
+                if (!player.BuffWeaponDmg.ContainsKey("shotgun")) player.BuffWeaponDmg["shotgun"] = 0;
+                player.BuffWeaponDmg["shotgun"] += 0.40f;
+                break;
+            case "sg_slug": player.BuffSlug = true; break;
             case "sg_stun": player.BuffStun = true; break;
+            case "sg_explosive": player.Weapon.Explosive = true; player.Weapon.ExplosionRadius = 30; break;
+            case "sg_vampire": player.BuffVampire += 10; break;
+            case "sg_mega": player.BuffSgPellets += 6; player.BuffDmg += 0.50f; break;
+            case "sg_nuke": player.BuffNuke = true; break;
+
+            // 火焰枪专属
+            case "flame_burn": player.BuffBurn = true; break;
+            case "flame_range": player.BuffFlameRange += 0.40f; break;
+            case "flame_wave": player.BuffFlameRange += 0.60f; break;
+            case "flame_speed": player.BuffFireRate += 0.50f; break;
             case "flame_dragon": player.BuffDragon = true; break;
+            case "flame_aoe": player.BuffFlameRange += 0.30f; break;
+            case "flame_inferno": player.BuffDmg += 0.80f; player.BuffFlameRange += 0.50f; break;
+            case "flame_phoenix": player.BuffPierce = true; player.BuffBurn = true; break;
+
+            // 激光枪专属
+            case "laser_beam": player.BuffLaserBeam = true; break;
+            case "laser_dmg":
+                if (!player.BuffWeaponDmg.ContainsKey("laser")) player.BuffWeaponDmg["laser"] = 0;
+                player.BuffWeaponDmg["laser"] += 0.35f;
+                break;
+            case "laser_chain": player.BuffChain = true; break;
+            case "laser_pierce": player.BuffPierce = true; break;
             case "laser_overload":
                 if (!player.BuffWeaponDmg.ContainsKey("laser")) player.BuffWeaponDmg["laser"] = 0;
                 player.BuffWeaponDmg["laser"] += 0.80f;
                 break;
+            case "laser_speed": player.BuffFireRate += 0.40f; break;
+            case "laser_prism": player.BuffDouble = true; break;
+            case "laser_death": player.BuffDmg += 1.50f; player.BuffLaserBeam = true; break;
+
+            // 火箭筒专属
+            case "grenade": player.BuffExplosion += 0.40f; break;
+            case "rocket_dmg":
+                if (!player.BuffWeaponDmg.ContainsKey("rocket")) player.BuffWeaponDmg["rocket"] = 0;
+                player.BuffWeaponDmg["rocket"] += 0.45f;
+                break;
+            case "rocket_cluster": player.BuffCluster = true; break;
+            case "rocket_speed": player.Weapon.BulletSpeed *= 1.6f; break;
             case "rocket_nuke": player.BuffNuke = true; break;
-            case "god": player.BuffDmg += 0.80f; player.BuffSpeed += 0.30f; break;
-            case "inf_ammo": player.BuffInfAmmo = true; break;
-            case "death_blow": player.BuffDeathBlow = true; break;
-            case "bullet_hell": player.BuffExtraBullets += 5; break;
+            case "rocket_homing": break; // 追踪导弹（需要额外逻辑）
+            case "rocket_mega": player.BuffDmg += 1.0f; player.BuffExplosion += 0.60f; break;
+            case "rocket_apocalypse": player.BuffCluster = true; player.BuffNuke = true; break;
         }
         player.ActiveBuffs.Add(buff);
         AudioManager.Buff();

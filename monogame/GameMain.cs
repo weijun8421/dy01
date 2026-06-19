@@ -23,9 +23,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private MenuScreen _menu = null!;
     private HUD _hud = null!;
     private BuffSelectScreen _buffScreen = null!;
+    private WeaponSelectScreen _weaponScreen = null!;
 
     // Game state
-    private enum State { Menu, Playing, Paused, Buff, GameOver, Victory }
+    private enum State { Menu, WeaponSelect, Playing, Paused, Buff, GameOver, Victory }
     private State _state = State.Menu;
     private string _mode = "campaign";
     private Player? _player;
@@ -36,6 +37,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private List<Bullet> _enemyBullets = new();
     private List<Explosion> _explosions = new();
     private List<BarrelExplosion> _barrelExplosions = new();
+    private List<Pickup> _pickups = new();
     private int _score, _kills, _levelNum = 1, _waveNum = 1, _waveRemain;
     private bool _waveDone;
     private int _hitstop;
@@ -46,9 +48,22 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private int _combo = 0;
     private int _comboTimer = 0;
     private float _comboMultiplier = 1f;
+    private WeaponDef _selectedWeapon = Config.WEAPONS[0];
 
     // Damage flash
     private int _damageFlash = 0;
+
+    // Level transition
+    private int _transitionTimer = 0;
+    private bool _transitioning = false;
+
+    // Wave announcement
+    private int _waveAnnounceTimer = 0;
+    private string _waveAnnounceText = "";
+
+    // Slow motion effect
+    private int _slowMotionTimer = 0;
+    private float _slowMotionScale = 1.0f;
 
     // Campaign map system
     private int _mapIdx, _mapLevel = 1;
@@ -93,6 +108,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _menu = new MenuScreen();
         _hud = new HUD();
         _buffScreen = new BuffSelectScreen();
+        _weaponScreen = new WeaponSelectScreen();
     }
 
     protected override void Update(GameTime gameTime)
@@ -103,6 +119,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
         {
             case State.Menu:
                 UpdateMenu();
+                break;
+            case State.WeaponSelect:
+                UpdateWeaponSelect();
                 break;
             case State.Playing:
                 UpdatePlaying();
@@ -134,7 +153,23 @@ public class GameMain : Microsoft.Xna.Framework.Game
             _mode = _menu.Confirm();
             _levelNum = 1; _waveNum = 1; _mapIdx = 0; _mapLevel = 1;
             _firstBuff = true;
-            ShowBuffs();
+            _state = State.WeaponSelect;
+        }
+    }
+
+    private void UpdateWeaponSelect()
+    {
+        _weaponScreen.Update();
+        if (_input.Pressed("up")) _weaponScreen.MoveUp();
+        else if (_input.Pressed("down")) _weaponScreen.MoveDown();
+        else if (_input.Pressed("enter"))
+        {
+            _selectedWeapon = _weaponScreen.Confirm();
+            Begin(_selectedWeapon);
+        }
+        else if (_input.Pressed("escape"))
+        {
+            _state = State.Menu;
         }
     }
 
@@ -160,6 +195,14 @@ public class GameMain : Microsoft.Xna.Framework.Game
         // Update damage flash
         if (_damageFlash > 0) _damageFlash--;
 
+        // Update slow motion
+        if (_slowMotionTimer > 0)
+        {
+            _slowMotionTimer--;
+            _slowMotionScale = 0.3f;
+            if (_slowMotionTimer <= 0) _slowMotionScale = 1.0f;
+        }
+
         // Check death
         bool p1Dead = _player != null && _player.Dead && _player.RespawnTimer <= 0;
         bool p2Dead = _player2 == null || (_player2.Dead && _player2.RespawnTimer <= 0);
@@ -169,16 +212,11 @@ public class GameMain : Microsoft.Xna.Framework.Game
         // Update players
         var keys = _input.KeyStates;
 
-        var p1Weps = _input.GetWeaponSwitch(0);
         _player?.Update(keys, _level!, _bullets, _particles, _renderer.Camera);
-        if (_player != null)
-            foreach (var wi in p1Weps) _player.SwitchWeapon(wi);
 
         if (_player2 != null)
         {
-            var p2Weps = _input.GetWeaponSwitch(1);
             _player2.Update(keys, _level!, _bullets, _particles, _renderer.Camera);
-            foreach (var wi in p2Weps) _player2.SwitchWeapon(wi);
         }
 
         // Camera
@@ -218,6 +256,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _particles.Update();
         _explosions.RemoveAll(e => !e.Update());
         ApplyExplosionDamage();
+
+        // Update pickups
+        UpdatePickups();
 
         // Barrel explosions
         for (int i = _barrelExplosions.Count - 1; i >= 0; i--)
@@ -314,7 +355,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         return "??";
     }
 
-    private void Begin()
+    private void Begin(WeaponDef weapon)
     {
         _state = State.Playing;
         _score = Math.Max(0, _score);
@@ -335,9 +376,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
             _player.Dead = false;
             _player.RespawnTimer = 0;
             _player.Hp = _player.MaxHpActual;
+            _player.Weapon = weapon.Clone();
         }
         else
-            _player = new Player(spawnTileX * Config.TILE, groundY - 16, false);
+            _player = new Player(spawnTileX * Config.TILE, groundY - 16, false, weapon);
 
         if (_mode == "coop")
         {
@@ -349,9 +391,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
                 _player2.Dead = false;
                 _player2.RespawnTimer = 0;
                 _player2.Hp = _player2.MaxHpActual;
+                _player2.Weapon = weapon.Clone();
             }
             else
-                _player2 = new Player((spawnTileX + 3) * Config.TILE, groundY - 16, true);
+                _player2 = new Player((spawnTileX + 3) * Config.TILE, groundY - 16, true, weapon);
         }
         else
             _player2 = null;
@@ -362,9 +405,21 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _particles.Clear();
         _explosions.Clear();
         _barrelExplosions.Clear();
+        _pickups.Clear();
         _renderer.Camera.Reset();
         _hitstop = 0;
+        
+        // Start transition animation
+        _transitioning = true;
+        _transitionTimer = 60; // 1 second at 60fps
+        
         SpawnWave();
+        
+        // Show wave announcement
+        _waveAnnounceTimer = 120; // 2 seconds
+        _waveAnnounceText = _mode == "campaign" 
+            ? $"关卡 {_levelNum} - {MapName()}" 
+            : $"WAVE {_waveNum}";
     }
 
     private void SpawnWave()
@@ -448,6 +503,63 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _enemies.Add(boss);
     }
 
+    private void SpawnPickup(float x, float y, string enemyType)
+    {
+        // Drop chance based on enemy type
+        double roll = _rng.NextDouble();
+        float dropChance = enemyType switch
+        {
+            "boss" => 1.0f,
+            "heavy" => 0.5f,
+            "elite" => 0.35f,
+            _ => 0.12f
+        };
+
+        if (roll > dropChance) return;
+
+        // Determine pickup type
+        bool needHealth = (_player != null && _player.Hp < _player.MaxHpActual * 0.7f) ||
+                          (_player2 != null && _player2.Hp < _player2.MaxHpActual * 0.7f);
+        
+        string type;
+        float value;
+        double typeRoll = _rng.NextDouble();
+        
+        if (needHealth && typeRoll < 0.5f)
+        {
+            type = "health";
+            value = enemyType == "boss" ? 50 : (enemyType == "heavy" ? 30 : 20);
+        }
+        else
+        {
+            type = "ammo";
+            value = enemyType == "boss" ? 999 : (enemyType == "heavy" ? 30 : 15);
+        }
+
+        _pickups.Add(new Pickup(x, y, type, value));
+    }
+
+    private void UpdatePickups()
+    {
+        _pickups.RemoveAll(p => !p.Update(_level!, _particles));
+
+        // Check player pickup
+        for (int i = _pickups.Count - 1; i >= 0; i--)
+        {
+            var p = _pickups[i];
+            if (_player != null && p.CheckPickup(_player))
+            {
+                p.Apply(_player, _particles);
+                _pickups.RemoveAt(i);
+            }
+            else if (_player2 != null && p.CheckPickup(_player2))
+            {
+                p.Apply(_player2, _particles);
+                _pickups.RemoveAt(i);
+            }
+        }
+    }
+
     private void ShowBuffs()
     {
         _state = State.Buff;
@@ -463,8 +575,8 @@ public class GameMain : Microsoft.Xna.Framework.Game
         if (_player == null)
         {
             int gy = (_level?.H ?? 40) - 4;
-            _player = new Player(80, gy * Config.TILE - 16, false);
-            if (_mode == "coop") _player2 = new Player(120, gy * Config.TILE - 16, true);
+            _player = new Player(80, gy * Config.TILE - 16, false, _selectedWeapon);
+            if (_mode == "coop") _player2 = new Player(120, gy * Config.TILE - 16, true, _selectedWeapon);
         }
 
         var targets = new List<Player> { _player };
@@ -493,7 +605,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         }
         _firstBuff = false;
 
-        Begin();
+        Begin(_selectedWeapon);
     }
 
     private void UpdateBullets()
@@ -524,6 +636,16 @@ public class GameMain : Microsoft.Xna.Framework.Game
                         if (owner != null && owner.BuffVampire > 0) owner.Heal(owner.BuffVampire);
                         _renderer.Camera.AddShake(4);
                         _hitstop = 3;
+                        
+                        // Drop pickup chance
+                        SpawnPickup(e.X, e.Y, e.Type);
+                        
+                        // Slow motion for last enemy
+                        if (_enemies.Count == 1 && _waveRemain <= 0)
+                        {
+                            _slowMotionTimer = 90; // 1.5 seconds at 60fps
+                            _renderer.Camera.AddShake(8);
+                        }
                     }
                     if (b.Weapon.Explosive)
                     {
@@ -688,6 +810,12 @@ public class GameMain : Microsoft.Xna.Framework.Game
             _menu.Draw(_renderer);
             sb.End();
         }
+        else if (_state == State.WeaponSelect)
+        {
+            sb.Begin(samplerState: SamplerState.PointClamp);
+            _weaponScreen.Draw(_renderer);
+            sb.End();
+        }
         else
         {
             sb.Begin(samplerState: SamplerState.PointClamp);
@@ -712,6 +840,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
             // Explosions
             foreach (var ex in _explosions) ex.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
 
+            // Pickups
+            foreach (var p in _pickups) p.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
+
             // Players
             _player?.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
             _player2?.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
@@ -733,7 +864,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
                 string waveLabel = _mode == "campaign"
                     ? $"{MapName()} {_mapLevel}/{MAP_LEVELS}"
                     : $"WAVE {_waveNum}";
-                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper(), _combo, _comboMultiplier, _level);
+                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper(), _combo, _comboMultiplier, _level, _enemies);
             }
 
             // Exit hint
@@ -783,6 +914,59 @@ public class GameMain : Microsoft.Xna.Framework.Game
             {
                 float flashAlpha = _damageFlash / 30f * 0.3f;
                 _renderer.DrawRect(new Color(255, 0, 0, (int)(flashAlpha * 255)), 0, 0, Config.W, Config.H);
+            }
+
+            // Level transition animation
+            if (_transitioning && _transitionTimer > 0)
+            {
+                float progress = _transitionTimer / 60f;
+                int barHeight = (int)(Config.H * progress);
+                
+                // Top bar
+                _renderer.DrawRect(new Color(0, 0, 0, 220), 0, 0, Config.W, barHeight);
+                // Bottom bar
+                _renderer.DrawRect(new Color(0, 0, 0, 220), 0, Config.H - barHeight, Config.W, barHeight);
+                
+                // Transition text
+                if (progress > 0.3f && progress < 0.8f)
+                {
+                    float textAlpha = Math.Min(1f, (progress - 0.3f) * 3f) * Math.Min(1f, (0.8f - progress) * 3f);
+                    string transText = _mode == "campaign" ? $"关卡 {_levelNum}" : $"WAVE {_waveNum}";
+                    var textSize = _renderer.MeasureString(transText);
+                    _renderer.DrawStringCentered(transText, 
+                        new Vector2(Config.W / 2f, Config.H / 2f - 20), 
+                        new Color(255, 200, 100, (int)(textAlpha * 255)), 1.5f);
+                    
+                    string subText = MapName();
+                    _renderer.DrawStringCentered(subText, 
+                        new Vector2(Config.W / 2f, Config.H / 2f + 20), 
+                        new Color(255, 255, 255, (int)(textAlpha * 200)), 1.0f);
+                }
+                
+                _transitionTimer--;
+                if (_transitionTimer <= 0) _transitioning = false;
+            }
+
+            // Wave announcement
+            if (_waveAnnounceTimer > 0)
+            {
+                float progress = _waveAnnounceTimer / 120f;
+                float alpha = Math.Min(1f, progress * 2f) * Math.Min(1f, (1f - progress) * 2f);
+                
+                // Background banner
+                int bannerH = 60;
+                int bannerY = Config.H / 2 - bannerH / 2;
+                _renderer.DrawRect(new Color(0, 0, 0, (int)(alpha * 150)), 0, bannerY, Config.W, bannerH);
+                _renderer.DrawRect(new Color(255, 51, 51, (int)(alpha * 200)), 0, bannerY, Config.W, 2);
+                _renderer.DrawRect(new Color(255, 51, 51, (int)(alpha * 200)), 0, bannerY + bannerH - 2, Config.W, 2);
+                
+                // Announcement text
+                float scale = 1.2f + (1f - alpha) * 0.3f;
+                _renderer.DrawStringCentered(_waveAnnounceText, 
+                    new Vector2(Config.W / 2f, Config.H / 2f - 5), 
+                    new Color(255, 220, 100, (int)(alpha * 255)), scale);
+                
+                _waveAnnounceTimer--;
             }
 
             sb.End();

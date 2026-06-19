@@ -24,63 +24,103 @@ public static class Config
     // Weapons
     public static readonly WeaponDef[] WEAPONS = new WeaponDef[]
     {
-        new WeaponDef { Name = "突击步枪", Icon = "AR", Id = "rifle", Damage = 14, FireRate = 7, BulletSpeed = 12,
-            Spread = 0.04f, Ammo = 35, MaxAmmo = 35, Reserve = 140, ReloadTime = 50,
+        // 突击步枪 - 均衡全能，中距离稳定输出
+        new WeaponDef { Name = "突击步枪", Icon = "AR", Id = "rifle", Damage = 13, FireRate = 6, BulletSpeed = 12,
+            Spread = 0.04f, Ammo = 30, MaxAmmo = 30, Reserve = 150, ReloadTime = 45,
             Pellets = 1, Explosive = false, Pierce = false, Color = new Color(255, 221, 68),
             BulletW = 4, BulletH = 3 },
-        new WeaponDef { Name = "霰弹枪", Icon = "SG", Id = "shotgun", Damage = 7, FireRate = 32, BulletSpeed = 9,
-            Spread = 0.22f, Ammo = 8, MaxAmmo = 8, Reserve = 48, ReloadTime = 70,
-            Pellets = 6, Explosive = false, Pierce = false, Color = new Color(255, 136, 51),
+        // 霰弹枪 - 近程爆发，高风险高回报
+        new WeaponDef { Name = "霰弹枪", Icon = "SG", Id = "shotgun", Damage = 9, FireRate = 28, BulletSpeed = 10,
+            Spread = 0.18f, Ammo = 8, MaxAmmo = 8, Reserve = 56, ReloadTime = 60,
+            Pellets = 7, Explosive = false, Pierce = false, Color = new Color(255, 136, 51),
             BulletW = 5, BulletH = 5 },
-        new WeaponDef { Name = "火焰枪", Icon = "FL", Id = "flame", Damage = 4, FireRate = 2, BulletSpeed = 7,
-            Spread = 0.12f, Ammo = 120, MaxAmmo = 120, Reserve = 360, ReloadTime = 90,
+        // 火焰枪 - 持续输出，穿透+大范围
+        new WeaponDef { Name = "火焰枪", Icon = "FL", Id = "flame", Damage = 5, FireRate = 2, BulletSpeed = 7,
+            Spread = 0.15f, Ammo = 150, MaxAmmo = 150, Reserve = 450, ReloadTime = 80,
             Pellets = 1, Explosive = false, Pierce = true, Color = new Color(255, 68, 34),
             BulletW = 6, BulletH = 6 },
-        new WeaponDef { Name = "激光枪", Icon = "LA", Id = "laser", Damage = 22, FireRate = 10, BulletSpeed = 20,
-            Spread = 0.01f, Ammo = 25, MaxAmmo = 25, Reserve = 100, ReloadTime = 55,
+        // 激光枪 - 精准高伤，穿透但射速慢
+        new WeaponDef { Name = "激光枪", Icon = "LA", Id = "laser", Damage = 18, FireRate = 12, BulletSpeed = 22,
+            Spread = 0.01f, Ammo = 20, MaxAmmo = 20, Reserve = 100, ReloadTime = 60,
             Pellets = 1, Explosive = false, Pierce = true, Color = new Color(68, 221, 255),
             BulletW = 3, BulletH = 10 },
-        new WeaponDef { Name = "火箭筒", Icon = "RK", Id = "rocket", Damage = 55, FireRate = 55, BulletSpeed = 5.5f,
-            Spread = 0.02f, Ammo = 4, MaxAmmo = 4, Reserve = 16, ReloadTime = 100,
-            Pellets = 1, Explosive = true, ExplosionRadius = 70, Pierce = false,
+        // 火箭筒 - 爆炸范围伤害，群控之王
+        new WeaponDef { Name = "火箭筒", Icon = "RK", Id = "rocket", Damage = 70, FireRate = 50, BulletSpeed = 6,
+            Spread = 0.02f, Ammo = 5, MaxAmmo = 5, Reserve = 20, ReloadTime = 90,
+            Pellets = 1, Explosive = true, ExplosionRadius = 75, Pierce = false,
             Color = new Color(255, 34, 34), BulletW = 8, BulletH = 8 },
     };
 
     // Buffs
     public static readonly BuffDef[] BUFFS = new BuffDef[]
     {
-        new BuffDef { Id = "dmg", Name = "力量强化", Desc = "所有武器伤害+20%", Tier = 0, Weapon = null, Icon = "!" },
-        new BuffDef { Id = "spd", Name = "敏捷步伐", Desc = "移动速度+15%", Tier = 0, Weapon = null, Icon = ">" },
+        // 通用 Buff (所有武器可用)
+        new BuffDef { Id = "dmg", Name = "力量强化", Desc = "伤害+20%", Tier = 0, Weapon = null, Icon = "!" },
+        new BuffDef { Id = "spd", Name = "敏捷步伐", Desc = "移速+15%", Tier = 0, Weapon = null, Icon = ">" },
         new BuffDef { Id = "hp", Name = "生命扩容", Desc = "生命上限+25%", Tier = 0, Weapon = null, Icon = "+" },
         new BuffDef { Id = "regen", Name = "缓慢恢复", Desc = "每秒恢复1HP", Tier = 0, Weapon = null, Icon = "R" },
-        new BuffDef { Id = "ammo_bag", Name = "弹药袋", Desc = "所有武器备弹+50%", Tier = 0, Weapon = null, Icon = "A" },
+        new BuffDef { Id = "ammo_bag", Name = "弹药袋", Desc = "备弹+50%", Tier = 0, Weapon = null, Icon = "A" },
         new BuffDef { Id = "fir", Name = "急速射击", Desc = "射速+25%", Tier = 1, Weapon = null, Icon = "F" },
         new BuffDef { Id = "vmp", Name = "生命偷取", Desc = "击杀恢复5HP", Tier = 1, Weapon = null, Icon = "V" },
-        new BuffDef { Id = "grenade", Name = "手雷精通", Desc = "爆炸范围+40%", Tier = 1, Weapon = "rocket", Icon = "O" },
-        new BuffDef { Id = "rifle_dmg", Name = "穿甲步枪弹", Desc = "步枪伤害+35%", Tier = 1, Weapon = "rifle", Icon = "R" },
-        new BuffDef { Id = "sg_wide", Name = "散射强化", Desc = "霰弹枪弹丸+3", Tier = 1, Weapon = "shotgun", Icon = "S" },
-        new BuffDef { Id = "flame_burn", Name = "持续灼烧", Desc = "火焰枪附加燃烧伤害", Tier = 1, Weapon = "flame", Icon = "F" },
-        new BuffDef { Id = "laser_beam", Name = "聚焦光束", Desc = "激光枪宽度+50%", Tier = 1, Weapon = "laser", Icon = "L" },
-        new BuffDef { Id = "prc", Name = "穿甲弹", Desc = "所有子弹穿透敌人", Tier = 2, Weapon = null, Icon = "#" },
-        new BuffDef { Id = "dbl", Name = "双发", Desc = "每次射击两发子弹", Tier = 2, Weapon = null, Icon = "2" },
+        new BuffDef { Id = "prc", Name = "穿甲弹", Desc = "子弹穿透敌人", Tier = 2, Weapon = null, Icon = "#" },
+        new BuffDef { Id = "dbl", Name = "双发", Desc = "每次射击两发", Tier = 2, Weapon = null, Icon = "2" },
         new BuffDef { Id = "crit", Name = "致命一击", Desc = "15%概率3倍伤害", Tier = 2, Weapon = null, Icon = "C" },
-        new BuffDef { Id = "rifle_burst", Name = "三连发", Desc = "步枪改为三连发", Tier = 2, Weapon = "rifle", Icon = "3" },
-        new BuffDef { Id = "sg_slug", Name = "独头弹", Desc = "霰弹枪单发高伤", Tier = 2, Weapon = "shotgun", Icon = "S" },
-        new BuffDef { Id = "flame_wave", Name = "火焰波", Desc = "火焰枪范围+60%", Tier = 2, Weapon = "flame", Icon = "F" },
-        new BuffDef { Id = "laser_chain", Name = "连锁闪电", Desc = "激光命中后弹射附近敌人", Tier = 2, Weapon = "laser", Icon = "L" },
-        new BuffDef { Id = "rocket_cluster", Name = "集束弹头", Desc = "火箭弹分裂为3枚", Tier = 2, Weapon = "rocket", Icon = "R" },
-        new BuffDef { Id = "bsk", Name = "狂战士之怒", Desc = "低血时伤害翻倍", Tier = 3, Weapon = null, Icon = "B" },
-        new BuffDef { Id = "shield", Name = "能量护盾", Desc = "每30秒抵挡一次伤害", Tier = 3, Weapon = null, Icon = "S" },
+        new BuffDef { Id = "bsk", Name = "狂战士", Desc = "低血时伤害翻倍", Tier = 3, Weapon = null, Icon = "B" },
+        new BuffDef { Id = "shield", Name = "能量护盾", Desc = "每30秒挡一次伤害", Tier = 3, Weapon = null, Icon = "S" },
         new BuffDef { Id = "reload_all", Name = "快速装填", Desc = "换弹速度+60%", Tier = 3, Weapon = null, Icon = "R" },
-        new BuffDef { Id = "rifle_turret", Name = "自动哨戒", Desc = "步枪自动索敌射击", Tier = 3, Weapon = "rifle", Icon = "T" },
-        new BuffDef { Id = "sg_stun", Name = "震撼弹", Desc = "霰弹枪命中眩晕敌人", Tier = 3, Weapon = "shotgun", Icon = "S" },
-        new BuffDef { Id = "flame_dragon", Name = "炎龙", Desc = "火焰枪射出龙形火焰", Tier = 3, Weapon = "flame", Icon = "F" },
-        new BuffDef { Id = "laser_overload", Name = "超载激光", Desc = "激光枪伤害+80%", Tier = 3, Weapon = "laser", Icon = "L" },
-        new BuffDef { Id = "rocket_nuke", Name = "微型核弹", Desc = "火箭弹爆炸范围+100%", Tier = 3, Weapon = "rocket", Icon = "R" },
         new BuffDef { Id = "god", Name = "天神下凡", Desc = "伤害+80% 移速+30%", Tier = 4, Weapon = null, Icon = "G" },
         new BuffDef { Id = "inf_ammo", Name = "无限弹药", Desc = "不再消耗弹药", Tier = 4, Weapon = null, Icon = "I" },
         new BuffDef { Id = "death_blow", Name = "死亡之触", Desc = "20%概率一击必杀", Tier = 4, Weapon = null, Icon = "D" },
-        new BuffDef { Id = "bullet_hell", Name = "弹幕风暴", Desc = "所有子弹数量+5", Tier = 4, Weapon = null, Icon = "B" },
+
+        // 突击步枪专属 Buff
+        new BuffDef { Id = "rifle_dmg", Name = "穿甲弹头", Desc = "伤害+35%", Tier = 0, Weapon = "rifle", Icon = "R" },
+        new BuffDef { Id = "rifle_speed", Name = "快速瞄准", Desc = "射速+30%", Tier = 0, Weapon = "rifle", Icon = ">" },
+        new BuffDef { Id = "rifle_burst", Name = "三连发", Desc = "每次射击3发子弹", Tier = 1, Weapon = "rifle", Icon = "3" },
+        new BuffDef { Id = "rifle_pierce", Name = "穿透强化", Desc = "子弹穿透+2个敌人", Tier = 1, Weapon = "rifle", Icon = "#" },
+        new BuffDef { Id = "rifle_turret", Name = "自动哨戒", Desc = "自动索敌射击", Tier = 2, Weapon = "rifle", Icon = "T" },
+        new BuffDef { Id = "rifle_crit", Name = "精准射击", Desc = "暴击率+25%", Tier = 2, Weapon = "rifle", Icon = "C" },
+        new BuffDef { Id = "rifle_hypershot", Name = "超频射击", Desc = "射速+60% 伤害+40%", Tier = 3, Weapon = "rifle", Icon = "H" },
+        new BuffDef { Id = "rifle_gauss", Name = "高斯步枪", Desc = "子弹速度翻倍 伤害+80%", Tier = 4, Weapon = "rifle", Icon = "G" },
+
+        // 霰弹枪专属 Buff
+        new BuffDef { Id = "sg_wide", Name = "散射强化", Desc = "弹丸+3", Tier = 0, Weapon = "shotgun", Icon = "S" },
+        new BuffDef { Id = "sg_dmg", Name = "大口径弹", Desc = "伤害+40%", Tier = 0, Weapon = "shotgun", Icon = "!" },
+        new BuffDef { Id = "sg_slug", Name = "独头弹", Desc = "单发高伤 穿透", Tier = 1, Weapon = "shotgun", Icon = "S" },
+        new BuffDef { Id = "sg_stun", Name = "震撼弹", Desc = "命中眩晕敌人", Tier = 1, Weapon = "shotgun", Icon = "S" },
+        new BuffDef { Id = "sg_explosive", Name = "爆破弹", Desc = "弹丸爆炸效果", Tier = 2, Weapon = "shotgun", Icon = "O" },
+        new BuffDef { Id = "sg_vampire", Name = "嗜血本能", Desc = "击杀恢复10HP", Tier = 2, Weapon = "shotgun", Icon = "V" },
+        new BuffDef { Id = "sg_mega", Name = "毁灭散射", Desc = "弹丸+6 伤害+50%", Tier = 3, Weapon = "shotgun", Icon = "M" },
+        new BuffDef { Id = "sg_nuke", Name = "核弹霰弹", Desc = "每发子弹爆炸", Tier = 4, Weapon = "shotgun", Icon = "N" },
+
+        // 火焰枪专属 Buff
+        new BuffDef { Id = "flame_burn", Name = "持续灼烧", Desc = "附加燃烧伤害", Tier = 0, Weapon = "flame", Icon = "F" },
+        new BuffDef { Id = "flame_range", Name = "延伸喷嘴", Desc = "射程+40%", Tier = 0, Weapon = "flame", Icon = ">" },
+        new BuffDef { Id = "flame_wave", Name = "火焰波", Desc = "火焰范围+60%", Tier = 1, Weapon = "flame", Icon = "F" },
+        new BuffDef { Id = "flame_speed", Name = "增压燃烧", Desc = "射速+50%", Tier = 1, Weapon = "flame", Icon = "F" },
+        new BuffDef { Id = "flame_dragon", Name = "炎龙吐息", Desc = "射出龙形火焰", Tier = 2, Weapon = "flame", Icon = "D" },
+        new BuffDef { Id = "flame_aoe", Name = "燃烧领域", Desc = "留下火焰地面", Tier = 2, Weapon = "flame", Icon = "A" },
+        new BuffDef { Id = "flame_inferno", Name = "炼狱之火", Desc = "伤害+80% 范围+50%", Tier = 3, Weapon = "flame", Icon = "I" },
+        new BuffDef { Id = "flame_phoenix", Name = "凤凰涅槃", Desc = "火焰穿透 持续灼烧", Tier = 4, Weapon = "flame", Icon = "P" },
+
+        // 激光枪专属 Buff
+        new BuffDef { Id = "laser_beam", Name = "聚焦光束", Desc = "光束宽度+150%", Tier = 0, Weapon = "laser", Icon = "L" },
+        new BuffDef { Id = "laser_dmg", Name = "能量增幅", Desc = "伤害+35%", Tier = 0, Weapon = "laser", Icon = "!" },
+        new BuffDef { Id = "laser_chain", Name = "连锁闪电", Desc = "命中后弹射", Tier = 1, Weapon = "laser", Icon = "L" },
+        new BuffDef { Id = "laser_pierce", Name = "贯穿射线", Desc = "穿透所有敌人", Tier = 1, Weapon = "laser", Icon = "#" },
+        new BuffDef { Id = "laser_overload", Name = "超载激光", Desc = "伤害+80%", Tier = 2, Weapon = "laser", Icon = "O" },
+        new BuffDef { Id = "laser_speed", Name = "快速充能", Desc = "射速+40%", Tier = 2, Weapon = "laser", Icon = ">" },
+        new BuffDef { Id = "laser_prism", Name = "棱镜折射", Desc = "分裂为3道激光", Tier = 3, Weapon = "laser", Icon = "P" },
+        new BuffDef { Id = "laser_death", Name = "死亡光线", Desc = "伤害+150% 宽度+100%", Tier = 4, Weapon = "laser", Icon = "D" },
+
+        // 火箭筒专属 Buff
+        new BuffDef { Id = "grenade", Name = "手雷精通", Desc = "爆炸范围+40%", Tier = 0, Weapon = "rocket", Icon = "O" },
+        new BuffDef { Id = "rocket_dmg", Name = "高爆弹头", Desc = "伤害+45%", Tier = 0, Weapon = "rocket", Icon = "!" },
+        new BuffDef { Id = "rocket_cluster", Name = "集束弹头", Desc = "分裂为3枚", Tier = 1, Weapon = "rocket", Icon = "R" },
+        new BuffDef { Id = "rocket_speed", Name = "推进强化", Desc = "弹速+60%", Tier = 1, Weapon = "rocket", Icon = ">" },
+        new BuffDef { Id = "rocket_nuke", Name = "微型核弹", Desc = "爆炸范围+100%", Tier = 2, Weapon = "rocket", Icon = "N" },
+        new BuffDef { Id = "rocket_homing", Name = "追踪导弹", Desc = "自动追踪敌人", Tier = 2, Weapon = "rocket", Icon = "H" },
+        new BuffDef { Id = "rocket_mega", Name = "毁灭打击", Desc = "伤害+100% 范围+60%", Tier = 3, Weapon = "rocket", Icon = "M" },
+        new BuffDef { Id = "rocket_apocalypse", Name = "末日审判", Desc = "分裂5枚 核爆范围", Tier = 4, Weapon = "rocket", Icon = "A" },
     };
 
     public static readonly Color[] TIER_COLORS = new Color[]
