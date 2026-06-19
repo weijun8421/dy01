@@ -101,6 +101,7 @@ public static class Config
         ["elite"] = new EnemyTypeDef { W = 20, H = 30, HP = 55, Speed = 1.8f, Damage = 13, Color = new Color(170, 34, 34), Score = 250 },
         ["heavy"] = new EnemyTypeDef { W = 30, H = 32, HP = 130, Speed = 0.6f, Damage = 22, Color = new Color(136, 34, 34), Score = 500 },
         ["flyer"] = new EnemyTypeDef { W = 18, H = 22, HP = 22, Speed = 2.2f, Damage = 10, Color = new Color(136, 68, 204), Score = 300, Fly = true },
+        ["shooter"] = new EnemyTypeDef { W = 18, H = 28, HP = 20, Speed = 0.8f, Damage = 12, Color = new Color(255, 153, 51), Score = 200 },
         ["boss"] = new EnemyTypeDef { W = 55, H = 55, HP = 900, Speed = 0.7f, Damage = 30, Color = new Color(102, 0, 0), Score = 5000 },
     };
 

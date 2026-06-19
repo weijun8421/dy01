@@ -4,7 +4,7 @@
   <Platform>DesktopGL</Platform>
   <Config />
   <SourceFiles>
-    <File>D:/project/dy01/monogame/Content/Font.spritefont</File>
+    <File>d:/project/dy01/monogame/Content/Font.spritefont</File>
   </SourceFiles>
   <DestFiles>
     <File xsi:nil="true" />

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using DY01.Data;
@@ -44,7 +45,7 @@ public class Enemy
         _patrolTimer = _rng.Next(30, 90);
     }
 
-    public bool Update(Player p1, Player? p2, Level level, ParticleSystem particles, Camera? camera = null)
+    public bool Update(Player p1, Player? p2, Level level, ParticleSystem particles, Camera? camera = null, List<Bullet>? enemyBullets = null)
     {
         Anim += 1;
         if (Flash > 0) Flash--;
@@ -82,7 +83,47 @@ public class Enemy
         if (Fly) UpdateFly(tgt, d);
         else UpdateGround(tgt, d, level);
 
-        if (d < (W + tgt.W) / 2f + 4 && _attackCd <= 0)
+        // Shooter enemy: ranged attack
+        if (Type == "shooter" && enemyBullets != null && _aggro && _attackCd <= 0 && d < 300 && d > 50)
+        {
+            float dx = tgt.X - X;
+            float dy = tgt.Y - Y;
+            float dist = MathF.Sqrt(dx * dx + dy * dy);
+            if (dist > 0)
+            {
+                float bulletSpeed = 6f;
+                float spread = 0.1f;
+                float angle = MathF.Atan2(dy, dx) + (float)(_rng.NextDouble() * spread * 2 - spread);
+                float bvx = MathF.Cos(angle) * bulletSpeed;
+                float bvy = MathF.Sin(angle) * bulletSpeed;
+                
+                var weapon = new WeaponDef
+                {
+                    Name = "shooter",
+                    Id = "shooter",
+                    Damage = Damage,
+                    FireRate = 60,
+                    BulletSpeed = bulletSpeed,
+                    Spread = spread,
+                    Ammo = 999,
+                    MaxAmmo = 999,
+                    Reserve = 999,
+                    ReloadTime = 0,
+                    Pellets = 1,
+                    Explosive = false,
+                    Pierce = false,
+                    Color = new Color(255, 153, 51),
+                    BulletW = 4,
+                    BulletH = 4
+                };
+                
+                enemyBullets.Add(new Bullet(X, Y - 5, bvx, bvy, weapon, "enemy"));
+                _attackCd = 90; // Shoot every 1.5 seconds
+                Facing = dx > 0 ? 1 : -1;
+            }
+        }
+        // Melee attack for other enemies
+        else if (d < (W + tgt.W) / 2f + 4 && _attackCd <= 0)
         {
             tgt.TakeDamage(Damage, particles, amt => camera?.AddShake(amt));
             _attackCd = 30;

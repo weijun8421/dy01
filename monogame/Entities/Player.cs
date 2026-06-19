@@ -357,20 +357,33 @@ public class Player
         Dead = true;
         RespawnTimer = 200;
         AudioManager.Die();
-        particles.SpawnBurst(X, Y, 30, 6, Color, (20, 50), (3, 7), (-8, 2));
+        
+        // 更戏剧化的死亡效果
+        particles.SpawnBurst(X, Y, 40, 8, Color, (30, 60), (4, 9), (-10, 3));
+        particles.SpawnBurst(X, Y, 20, 5, new Color(255, 200, 0), (20, 40), (3, 6), (-6, 2));
+        particles.SpawnText(X, Y - 30, "DEAD!", new Color(255, 50, 50), 20);
     }
 
-    public void Respawn(Player? other)
+    public void Respawn(Player? other, ParticleSystem? particles = null)
     {
         Dead = false;
         Hp = MaxHpActual * 0.5f;
-        Invincible = 70;
+        Invincible = 90; // 增加无敌时间
+        
         if (other != null && !other.Dead)
         {
             X = other.X + (IsP2 ? 40 : -40);
             Y = other.Y;
         }
         else { X = 100; Y = 300; }
+        
+        // 复活特效
+        if (particles != null)
+        {
+            particles.SpawnBurst(X, Y, 25, 6, new Color(100, 255, 100), (15, 35), (3, 7), (-5, 2));
+            particles.SpawnBurst(X, Y, 15, 4, new Color(255, 255, 255), (10, 25), (2, 5), (-3, 1));
+            particles.SpawnText(X, Y - 30, "RESPAWN!", new Color(100, 255, 100), 18);
+        }
     }
 
     public void Heal(float amt)

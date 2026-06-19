@@ -161,7 +161,7 @@ public class MenuScreen
 
 public class HUD
 {
-    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName)
+    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName, int combo = 0, float comboMultiplier = 1f, Level? level = null)
     {
         var sb = renderer.SpriteBatch;
         var font = renderer.Font;
@@ -194,6 +194,26 @@ public class HUD
         renderer.DrawRect(new Color(255, 170, 0, 50), Config.W - 208, 46, 200, 2);
         renderer.DrawString($"SCORE {score}", new Vector2(Config.W - 200, 10), new Color(255, 220, 100), 0.8f);
         renderer.DrawString($"{waveLabel}  {modeName}", new Vector2(Config.W - 200, 28), Color.White, 0.8f);
+
+        // Combo display
+        if (combo > 0)
+        {
+            float time = (float)Environment.TickCount / 1000f;
+            float pulse = 1f + (float)Math.Sin(time * 8) * 0.1f;
+            int comboAlpha = Math.Min(255, 150 + combo * 10);
+            
+            // Combo background
+            renderer.DrawRect(new Color(255, 51, 51, 60), Config.W - 208, 52, 200, 36);
+            renderer.DrawRect(new Color(255, 51, 51, 150), Config.W - 208, 52, 200, 2);
+            
+            // Combo text
+            string comboText = $"COMBO {combo}";
+            string multText = $"x{comboMultiplier:F1}";
+            
+            var comboColor = new Color(255, 100 + combo * 5, 100 + combo * 5, comboAlpha);
+            renderer.DrawString(comboText, new Vector2(Config.W - 200, 56), comboColor, 0.9f * pulse);
+            renderer.DrawString(multText, new Vector2(Config.W - 100, 56), new Color(255, 220, 100, comboAlpha), 0.9f * pulse);
+        }
 
         // Weapon bar with enhanced styling
         if (player != null)
@@ -244,6 +264,65 @@ public class HUD
             // HP bar highlight
             renderer.DrawRect(new Color(255, 255, 255, 60), Config.W - 200, Config.H - 86, (int)(184 * hp2), 2);
             renderer.DrawString($"P2 HP {(int)player2.Hp}", new Vector2(Config.W - 196, Config.H - 88), Color.White, 0.8f);
+        }
+
+        // Minimap
+        if (level != null && player != null)
+        {
+            DrawMinimap(renderer, player, player2, level);
+        }
+    }
+
+    private void DrawMinimap(Renderer renderer, Player player, Player? player2, Level level)
+    {
+        int mapW = 160;
+        int mapH = 100;
+        int mapX = Config.W - mapW - 10;
+        int mapY = Config.H - mapH - 10;
+
+        // Background
+        renderer.DrawRect(new Color(0, 0, 0, 180), mapX, mapY, mapW, mapH);
+        renderer.DrawRect(new Color(255, 255, 255, 100), mapX, mapY, mapW, 2);
+        renderer.DrawRect(new Color(255, 255, 255, 100), mapX, mapY + mapH - 2, mapW, 2);
+        renderer.DrawRect(new Color(255, 255, 255, 100), mapX, mapY, 2, mapH);
+        renderer.DrawRect(new Color(255, 255, 255, 100), mapX + mapW - 2, mapY, 2, mapH);
+
+        // Scale factors
+        float scaleX = (float)mapW / (level.W * Config.TILE);
+        float scaleY = (float)mapH / (level.H * Config.TILE);
+
+        // Draw terrain (simplified)
+        for (int y = 0; y < level.H; y++)
+        {
+            for (int x = 0; x < level.W; x++)
+            {
+                if (level.Tiles[x][y].Solid)
+                {
+                    int px = mapX + (int)(x * Config.TILE * scaleX);
+                    int py = mapY + (int)(y * Config.TILE * scaleY);
+                    int tw = Math.Max(1, (int)(Config.TILE * scaleX));
+                    int th = Math.Max(1, (int)(Config.TILE * scaleY));
+                    renderer.DrawRect(new Color(100, 100, 100, 150), px, py, tw, th);
+                }
+            }
+        }
+
+        // Draw exit
+        int exitX = mapX + (int)(level.ExitX * scaleX);
+        int exitY = mapY + (int)(level.ExitY * scaleY);
+        renderer.DrawRect(new Color(0, 255, 0, 200), exitX - 3, exitY - 3, 6, 6);
+
+        // Draw player
+        int p1X = mapX + (int)(player.X * scaleX);
+        int p1Y = mapY + (int)(player.Y * scaleY);
+        renderer.DrawRect(new Color(255, 50, 50, 255), p1X - 2, p1Y - 2, 4, 4);
+
+        // Draw player 2
+        if (player2 != null && !player2.Dead)
+        {
+            int p2X = mapX + (int)(player2.X * scaleX);
+            int p2Y = mapY + (int)(player2.Y * scaleY);
+            renderer.DrawRect(new Color(50, 150, 255, 255), p2X - 2, p2Y - 2, 4, 4);
         }
     }
 }

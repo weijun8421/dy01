@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "D:\\project\\dy01\\monogame\\DY01.csproj": {}
+    "d:\\project\\dy01\\monogame\\DY01.csproj": {}
   },
   "projects": {
-    "D:\\project\\dy01\\monogame\\DY01.csproj": {
+    "d:\\project\\dy01\\monogame\\DY01.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "D:\\project\\dy01\\monogame\\DY01.csproj",
+        "projectUniqueName": "d:\\project\\dy01\\monogame\\DY01.csproj",
         "projectName": "DY01",
-        "projectPath": "D:\\project\\dy01\\monogame\\DY01.csproj",
+        "projectPath": "d:\\project\\dy01\\monogame\\DY01.csproj",
         "packagesPath": "C:\\Users\\26964\\.nuget\\packages\\",
-        "outputPath": "D:\\project\\dy01\\monogame\\obj\\",
+        "outputPath": "d:\\project\\dy01\\monogame\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\26964\\AppData\\Roaming\\NuGet\\NuGet.Config"

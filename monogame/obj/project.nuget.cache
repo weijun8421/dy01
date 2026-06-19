@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "l2lol++wWjI=",
+  "dgSpecHash": "dyFYPzbO6ps=",
   "success": true,
-  "projectFilePath": "D:\\project\\dy01\\monogame\\DY01.csproj",
+  "projectFilePath": "d:\\project\\dy01\\monogame\\DY01.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\26964\\.nuget\\packages\\monogame.content.builder.task\\3.8.4.1\\monogame.content.builder.task.3.8.4.1.nupkg.sha512",
     "C:\\Users\\26964\\.nuget\\packages\\monogame.framework.desktopgl\\3.8.4.1\\monogame.framework.desktopgl.3.8.4.1.nupkg.sha512",

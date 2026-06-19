@@ -32,3 +32,4 @@ D:\project\dy01\monogame\bin\Debug\net8.0\runtimes\win-x64\native\SDL2.dll
 D:\project\dy01\monogame\obj\Debug\net8.0\DY01.csproj.Up2Date
 D:\project\dy01\monogame\obj\Debug\net8.0\DY01.genruntimeconfig.cache
 D:\project\dy01\monogame\obj\Debug\net8.0\ref\DY01.dll
+d:\project\dy01\monogame\obj\Debug\net8.0\DY01.sourcelink.json

@@ -33,6 +33,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private Level? _level;
     private List<Enemy> _enemies = new();
     private List<Bullet> _bullets = new();
+    private List<Bullet> _enemyBullets = new();
     private List<Explosion> _explosions = new();
     private List<BarrelExplosion> _barrelExplosions = new();
     private int _score, _kills, _levelNum = 1, _waveNum = 1, _waveRemain;
@@ -40,6 +41,14 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private int _hitstop;
     private List<BuffDef> _buffChoices = new();
     private Random _rng = new();
+
+    // Combo system
+    private int _combo = 0;
+    private int _comboTimer = 0;
+    private float _comboMultiplier = 1f;
+
+    // Damage flash
+    private int _damageFlash = 0;
 
     // Campaign map system
     private int _mapIdx, _mapLevel = 1;
@@ -133,7 +142,23 @@ public class GameMain : Microsoft.Xna.Framework.Game
     {
         if (_input.Pressed("escape")) { _state = State.Paused; return; }
 
+        AudioManager.Update();
+
         if (_hitstop > 0) { _hitstop--; return; }
+
+        // Update combo timer
+        if (_comboTimer > 0)
+        {
+            _comboTimer--;
+            if (_comboTimer <= 0)
+            {
+                _combo = 0;
+                _comboMultiplier = 1f;
+            }
+        }
+
+        // Update damage flash
+        if (_damageFlash > 0) _damageFlash--;
 
         // Check death
         bool p1Dead = _player != null && _player.Dead && _player.RespawnTimer <= 0;
@@ -175,7 +200,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         {
             if (_player == null) return true;
             bool wasBoss = e.Type == "boss";
-            bool dead = !e.Update(_player, _player2, _level!, _particles, _renderer.Camera) || e.Hp <= 0;
+            bool dead = !e.Update(_player, _player2, _level!, _particles, _renderer.Camera, _enemyBullets) || e.Hp <= 0;
             if (dead && wasBoss) _bossAlive = false;
             return dead;
         });
@@ -185,6 +210,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
 
         // Turret
         UpdateTurret();
+
+        // Update enemy bullets
+        UpdateEnemyBullets();
 
         // Particles and explosions
         _particles.Update();
@@ -330,6 +358,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
 
         _enemies.Clear();
         _bullets.Clear();
+        _enemyBullets.Clear();
         _particles.Clear();
         _explosions.Clear();
         _barrelExplosions.Clear();
@@ -378,12 +407,14 @@ public class GameMain : Microsoft.Xna.Framework.Game
                 if (roll < 0.08) etype = "heavy";
                 else if (roll < 0.28) etype = "elite";
                 else if (roll < 0.42) etype = "flyer";
+                else if (roll < 0.55) etype = "shooter";
             }
             else if (_levelNum > 3 || _mapIdx > 0)
             {
                 if (roll < 0.15) etype = "elite";
                 else if (roll < 0.28) etype = "flyer";
                 else if (roll < 0.35 && _levelNum > 5) etype = "heavy";
+                else if (roll < 0.48) etype = "shooter";
             }
             
             if (_mode == "endless" && _waveNum % 5 == 0 && _waveNum >= 5 && _enemies.Count == 0)
@@ -485,7 +516,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
                     if (killed)
                     {
                         _kills++;
-                        _score += e.Score;
+                        _combo++;
+                        _comboTimer = 180; // 3 seconds at 60fps
+                        _comboMultiplier = 1f + MathF.Min(_combo * 0.1f, 2f); // Max 3x multiplier
+                        _score += (int)(e.Score * _comboMultiplier);
                         var owner = b.OwnerId == "p1" ? _player : _player2;
                         if (owner != null && owner.BuffVampire > 0) owner.Heal(owner.BuffVampire);
                         _renderer.Camera.AddShake(4);
@@ -535,6 +569,52 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _bullets = newBullets;
     }
 
+    private void UpdateEnemyBullets()
+    {
+        var newBullets = new List<Bullet>();
+        foreach (var b in _enemyBullets)
+        {
+            if (!b.Update()) continue;
+
+            bool hitSomething = false;
+            
+            // Check collision with players
+            if (_player != null && !_player.Dead)
+            {
+                float dist = MathF.Sqrt((b.X - _player.X) * (b.X - _player.X) + (b.Y - _player.Y) * (b.Y - _player.Y));
+                if (dist < _player.W / 2f + b.Weapon.BulletW)
+                {
+                    _player.TakeDamage(b.Weapon.Damage, _particles, amt => _renderer.Camera.AddShake(amt));
+                    _damageFlash = 30;
+                    hitSomething = true;
+                }
+            }
+            
+            if (!hitSomething && _player2 != null && !_player2.Dead)
+            {
+                float dist = MathF.Sqrt((b.X - _player2.X) * (b.X - _player2.X) + (b.Y - _player2.Y) * (b.Y - _player2.Y));
+                if (dist < _player2.W / 2f + b.Weapon.BulletW)
+                {
+                    _player2.TakeDamage(b.Weapon.Damage, _particles, amt => _renderer.Camera.AddShake(amt));
+                    hitSomething = true;
+                }
+            }
+
+            if (hitSomething) continue;
+
+            // Tile collision
+            var (tx, ty) = Physics.AabbVsTiles(b.X, b.Y, 4, 4, _level!);
+            if (tx.HasValue && ty.HasValue)
+            {
+                _particles.SpawnBurst(b.X, b.Y, 3, 2, new Color(255, 153, 51), (5, 12), (1, 3), (-2, 1));
+                continue;
+            }
+
+            newBullets.Add(b);
+        }
+        _enemyBullets = newBullets;
+    }
+
     private void ApplyExplosionDamage()
     {
         foreach (var ex in _explosions)
@@ -549,7 +629,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
                     if (killed)
                     {
                         _kills++;
-                        _score += e.Score;
+                        _combo++;
+                        _comboTimer = 180;
+                        _comboMultiplier = 1f + MathF.Min(_combo * 0.1f, 2f);
+                        _score += (int)(e.Score * _comboMultiplier);
                         if (_player != null && _player.BuffVampire > 0) _player.Heal(_player.BuffVampire);
                     }
                 }
@@ -619,6 +702,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
 
             // Bullets
             foreach (var b in _bullets) b.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
+            
+            // Enemy bullets
+            foreach (var b in _enemyBullets) b.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
 
             // Enemies
             foreach (var e in _enemies) e.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
@@ -647,7 +733,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
                 string waveLabel = _mode == "campaign"
                     ? $"{MapName()} {_mapLevel}/{MAP_LEVELS}"
                     : $"WAVE {_waveNum}";
-                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper());
+                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper(), _combo, _comboMultiplier, _level);
             }
 
             // Exit hint
@@ -690,6 +776,13 @@ public class GameMain : Microsoft.Xna.Framework.Game
                     _buffScreen.Update();
                     _buffScreen.Draw(_renderer);
                     break;
+            }
+
+            // Damage flash effect
+            if (_damageFlash > 0)
+            {
+                float flashAlpha = _damageFlash / 30f * 0.3f;
+                _renderer.DrawRect(new Color(255, 0, 0, (int)(flashAlpha * 255)), 0, 0, Config.W, Config.H);
             }
 
             sb.End();
