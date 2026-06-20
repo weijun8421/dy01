@@ -42,6 +42,28 @@ public class Enemy
     private const float HEALER_HEAL_RANGE = 150f;
     private const float HEALER_KEEP_DISTANCE = 120f;
 
+    // Ninja-specific
+    private int _dashCd = 0;
+    private int _dashTimer = 0;
+    private const float NINJA_DASH_RANGE = 200f;
+
+    // Shield-specific
+    private bool _shieldUp = false;
+    private int _shieldTimer = 0;
+    private const int SHIELD_DURATION = 90; // 1.5 seconds
+
+    // Sniper-specific
+    private int _aimTimer = 0;
+    private bool _aiming = false;
+    private const int SNIPER_AIM_TIME = 60; // 1 second to aim
+
+    // AI协同作战
+    public int AlertLevel = 0; // 0=未警觉, 1=警戒, 2=战斗
+    public int AlertTimer = 0;
+    public bool CallForHelp = false;
+    private const float ALERT_RANGE = 250f;
+    private const float HELP_CALL_RANGE = 180f;
+
     public Enemy(float x, float y, string etype)
     {
         X = x; Y = y; Type = etype;
@@ -84,6 +106,33 @@ public class Enemy
 
         var (tgt, d) = FindTarget(p1, p2);
 
+        // 更新警觉等级
+        if (tgt != null && d < ALERT_RANGE)
+        {
+            AlertLevel = 2; // 战斗中
+            AlertTimer = 120; // 2秒后降级
+            
+            // 呼叫支援
+            if (CallForHelp == false && d < HELP_CALL_RANGE)
+            {
+                CallForHelp = true;
+            }
+        }
+        else if (AlertTimer > 0)
+        {
+            AlertTimer--;
+            if (AlertTimer <= 0)
+            {
+                AlertLevel = Math.Max(0, AlertLevel - 1);
+                if (AlertLevel > 0)
+                    AlertTimer = 60; // 再给1秒
+            }
+        }
+        else
+        {
+            AlertLevel = 0;
+        }
+
         if (tgt != null && d < _detectRange)
             _aggro = true;
         else if (tgt != null && d > _detectRange * 1.3f)
@@ -104,6 +153,27 @@ public class Enemy
         if (Type == "healer")
         {
             UpdateHealer(tgt, d, level, particles, enemyBullets);
+            return Hp > 0;
+        }
+
+        // Ninja behavior
+        if (Type == "ninja")
+        {
+            UpdateNinja(tgt, d, level, particles);
+            return Hp > 0;
+        }
+
+        // Shield behavior
+        if (Type == "shield")
+        {
+            UpdateShield(tgt, d, level, particles);
+            return Hp > 0;
+        }
+
+        // Sniper behavior
+        if (Type == "sniper" && enemyBullets != null)
+        {
+            UpdateSniper(tgt, d, level, particles, enemyBullets);
             return Hp > 0;
         }
 
@@ -339,6 +409,191 @@ public class Enemy
             // 治疗特效
             particles.SpawnBurst(X, Y - H / 2f, 8, 3, new Color(100, 255, 100), (15, 25), (2, 4), (-4, 0));
             particles.SpawnText(X, Y - H, "+HEAL", new Color(100, 255, 100), 14);
+        }
+    }
+
+    private void UpdateNinja(Player tgt, float d, Level level, ParticleSystem particles)
+    {
+        // Ninja: 快速移动，偶尔冲刺攻击
+        float dx = tgt.X - X;
+        
+        if (_dashTimer > 0)
+        {
+            // 冲刺中
+            _dashTimer--;
+            Vx = Facing * Speed * 2.5f;
+            particles.SpawnBurst(X, Y - H / 2f, 2, 1, new Color(100, 100, 150, 150), (5, 10), (1, 2));
+        }
+        else if (_dashCd > 0)
+        {
+            _dashCd--;
+            // 正常追击
+            if (_aggro && d > 5)
+            {
+                Vx = Physics.Accelerate(Vx, Speed, 0.4f, dx > 0 ? 1 : -1);
+                Facing = dx > 0 ? 1 : -1;
+            }
+        }
+        else if (d < NINJA_DASH_RANGE && _aggro)
+        {
+            // 开始冲刺
+            _dashTimer = 20; // 冲刺持续0.33秒
+            _dashCd = 120; // 冲刺冷却2秒
+            Facing = dx > 0 ? 1 : -1;
+            particles.SpawnBurst(X, Y - H / 2f, 5, 2, new Color(150, 150, 200), (10, 15), (2, 3));
+        }
+        else
+        {
+            // 正常移动
+            if (_aggro && d > 5)
+            {
+                Vx = Physics.Accelerate(Vx, Speed, 0.3f, dx > 0 ? 1 : -1);
+                Facing = dx > 0 ? 1 : -1;
+            }
+        }
+        
+        // 跳跃接近
+        if (Grounded && tgt.Y < Y - 30 && d < 150 && _rng.NextDouble() < 0.04)
+        {
+            Vy = -9;
+        }
+        
+        // 应用重力和移动
+        Vy = Physics.ApplyGravity(Vy);
+        X += Vx; Y += Vy;
+        Grounded = false;
+        (X, Y, Vx, Vy, Grounded) = Physics.ResolveCollision(X, Y, W, H, Vx, Vy, level);
+        
+        // 近战攻击
+        if (d < (W + tgt.W) / 2f + 4 && _attackCd <= 0)
+        {
+            tgt.TakeDamage(Damage, particles, _ => { });
+            _attackCd = 20; // 快速攻击
+        }
+    }
+
+    private void UpdateShield(Player tgt, float d, Level level, ParticleSystem particles)
+    {
+        // Shield: 举盾防御，偶尔放下盾牌攻击
+        float dx = tgt.X - X;
+        
+        // 更新盾牌状态
+        if (_shieldUp)
+        {
+            _shieldTimer--;
+            if (_shieldTimer <= 0)
+            {
+                _shieldUp = false;
+                _shieldTimer = 60; // 盾牌放下1秒
+            }
+        }
+        else
+        {
+            _shieldTimer--;
+            if (_shieldTimer <= 0)
+            {
+                _shieldUp = true;
+                _shieldTimer = SHIELD_DURATION;
+            }
+        }
+        
+        // 移动逻辑
+        if (_aggro && d > 5)
+        {
+            float speed = _shieldUp ? Speed * 0.5f : Speed;
+            Vx = Physics.Accelerate(Vx, speed, 0.2f, dx > 0 ? 1 : -1);
+            Facing = dx > 0 ? 1 : -1;
+        }
+        
+        // 应用重力和移动
+        Vy = Physics.ApplyGravity(Vy);
+        X += Vx; Y += Vy;
+        Grounded = false;
+        (X, Y, Vx, Vy, Grounded) = Physics.ResolveCollision(X, Y, W, H, Vx, Vy, level);
+        
+        // 近战攻击（盾牌放下时）
+        if (!_shieldUp && d < (W + tgt.W) / 2f + 4 && _attackCd <= 0)
+        {
+            tgt.TakeDamage(Damage, particles, _ => { });
+            _attackCd = 40;
+        }
+    }
+
+    private void UpdateSniper(Player tgt, float d, Level level, ParticleSystem particles, List<Bullet> enemyBullets)
+    {
+        // Sniper: 远程精准射击，需要瞄准时间
+        float dx = tgt.X - X;
+        float dy = tgt.Y - Y;
+        
+        // 保持距离
+        if (d < 200)
+        {
+            float retreatDir = dx > 0 ? -1 : 1;
+            Vx = Physics.Accelerate(Vx, Speed * 0.7f, 0.2f, retreatDir);
+        }
+        else if (d > 400)
+        {
+            Vx = Physics.Accelerate(Vx, Speed * 0.5f, 0.15f, dx > 0 ? 1 : -1);
+        }
+        else
+        {
+            Vx *= 0.8f;
+        }
+        
+        Facing = dx > 0 ? 1 : -1;
+        
+        // 应用重力和移动
+        Vy = Physics.ApplyGravity(Vy);
+        X += Vx; Y += Vy;
+        Grounded = false;
+        (X, Y, Vx, Vy, Grounded) = Physics.ResolveCollision(X, Y, W, H, Vx, Vy, level);
+        
+        // 瞄准和射击
+        if (_aiming)
+        {
+            _aimTimer++;
+            if (_aimTimer >= SNIPER_AIM_TIME)
+            {
+                // 发射狙击子弹
+                float angle = MathF.Atan2(dy, dx);
+                float bulletSpeed = 15f;
+                float bvx = MathF.Cos(angle) * bulletSpeed;
+                float bvy = MathF.Sin(angle) * bulletSpeed;
+                
+                var sniperWeapon = new WeaponDef
+                {
+                    Name = "sniper",
+                    Id = "sniper",
+                    Damage = Damage,
+                    FireRate = 180,
+                    BulletSpeed = bulletSpeed,
+                    Spread = 0,
+                    Ammo = 999,
+                    MaxAmmo = 999,
+                    Reserve = 999,
+                    ReloadTime = 0,
+                    Pellets = 1,
+                    Explosive = false,
+                    Pierce = true,
+                    Color = new Color(255, 200, 100),
+                    BulletW = 8,
+                    BulletH = 3
+                };
+                
+                enemyBullets.Add(new Bullet(X, Y - H / 2f, bvx, bvy, sniperWeapon, "enemy"));
+                _aiming = false;
+                _aimTimer = 0;
+                _attackCd = 180; // 3秒冷却
+                
+                // 射击特效
+                particles.SpawnBurst(X + Facing * 15, Y - H / 2f, 3, 2, new Color(255, 220, 150), (5, 10), (2, 3));
+            }
+        }
+        else if (_attackCd <= 0 && d < 400 && d > 100 && _aggro)
+        {
+            // 开始瞄准
+            _aiming = true;
+            _aimTimer = 0;
         }
     }
 
@@ -649,6 +904,155 @@ public class Enemy
                 var healColor = new Color(100, 255, 100, 150);
                 sb.Draw(pixel, new Rectangle(sx - 1, headY - 15, 3, 8), healColor);
                 sb.Draw(pixel, new Rectangle(sx - 3, headY - 12, 7, 3), healColor);
+            }
+        }
+        else if (Type == "ninja")
+        {
+            // Ninja: 黑色紧身衣，带有红色围巾
+            int legOff = 0;
+            if (Grounded && Math.Abs(Vx) > 0.2f)
+                legOff = (int)(Math.Sin(Anim * 0.2f * Speed * 2) * 5);
+            else if (!Grounded) legOff = -3;
+
+            // Legs (dark)
+            sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 6, 5, 8), new Color(30, 30, 40));
+            sb.Draw(pixel, new Rectangle(sx + legOff, sy + 6, 5, 8), new Color(30, 30, 40));
+            sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 13, 6, 3), new Color(20, 20, 25));
+            sb.Draw(pixel, new Rectangle(sx - 1 - legOff, sy + 13, 6, 3), new Color(20, 20, 25));
+
+            // Body (dark gray/black)
+            int bodyH = H - 12;
+            sb.Draw(pixel, new Rectangle(sx - hw, sy - bodyH + 3, W, bodyH), color);
+            
+            // Belt
+            sb.Draw(pixel, new Rectangle(sx - hw, sy + 3, W, 2), new Color(60, 40, 20));
+            
+            // Head (masked)
+            int headY = sy - bodyH - 3;
+            sb.Draw(pixel, new Rectangle(sx - 5, headY, 10, 10), new Color(40, 40, 50));
+            // Eyes (glowing red)
+            var eyeColor = Flash > 0 ? Color.White : new Color(255, 80, 80);
+            sb.Draw(pixel, new Rectangle(sx - 3 + f, headY + 3, 2, 2), eyeColor);
+            sb.Draw(pixel, new Rectangle(sx + 1 + f, headY + 3, 2, 2), eyeColor);
+            
+            // Scarf (red, flowing)
+            float scarfWave = (float)Math.Sin(Anim * 0.15f) * 2;
+            sb.Draw(pixel, new Rectangle(sx - 6, headY + 8, 4, 6), new Color(180, 40, 40));
+            sb.Draw(pixel, new Rectangle(sx - 7 + (int)scarfWave, headY + 12, 3, 4), new Color(160, 30, 30));
+            
+            // Kunai in hand
+            sb.Draw(pixel, new Rectangle(sx + f * 8, sy - bodyH + 8, f * 3, 8), new Color(120, 120, 120));
+            sb.Draw(pixel, new Rectangle(sx + f * 10, sy - bodyH + 6, f * 2, 3), new Color(180, 180, 180));
+            
+            // Dash effect
+            if (_dashTimer > 0)
+            {
+                var dashColor = new Color(150, 150, 200, 100);
+                sb.Draw(pixel, new Rectangle(sx - hw - 4, sy - bodyH, W + 8, bodyH + 12), dashColor);
+            }
+        }
+        else if (Type == "shield")
+        {
+            // Shield bearer: 重甲战士，带大盾
+            int legOff = 0;
+            if (Grounded && Math.Abs(Vx) > 0.2f)
+                legOff = (int)(Math.Sin(Anim * 0.12f * Speed * 2) * 4);
+            else if (!Grounded) legOff = -2;
+
+            // Legs (armored)
+            sb.Draw(pixel, new Rectangle(sx - 6 + legOff, sy + 6, 6, 8), new Color(60, 65, 75));
+            sb.Draw(pixel, new Rectangle(sx + legOff, sy + 6, 6, 8), new Color(60, 65, 75));
+            sb.Draw(pixel, new Rectangle(sx - 6 + legOff, sy + 13, 7, 3), new Color(50, 55, 65));
+            sb.Draw(pixel, new Rectangle(sx - 1 - legOff, sy + 13, 7, 3), new Color(50, 55, 65));
+
+            // Body (heavy armor)
+            int bodyH = H - 12;
+            sb.Draw(pixel, new Rectangle(sx - hw, sy - bodyH + 3, W, bodyH), color);
+            
+            // Armor plates
+            sb.Draw(pixel, new Rectangle(sx - hw + 2, sy - bodyH + 5, W - 4, 3), new Color(130, 150, 170));
+            sb.Draw(pixel, new Rectangle(sx - hw + 2, sy - bodyH + 10, W - 4, 2), new Color(110, 130, 150));
+            
+            // Belt
+            sb.Draw(pixel, new Rectangle(sx - hw, sy + 3, W, 3), new Color(70, 50, 30));
+            sb.Draw(pixel, new Rectangle(sx - 2, sy + 3, 4, 3), new Color(180, 150, 50));
+            
+            // Head (helmeted)
+            int headY = sy - bodyH - 3;
+            sb.Draw(pixel, new Rectangle(sx - 6, headY - 2, 12, 12), new Color(90, 100, 110));
+            // Visor
+            sb.Draw(pixel, new Rectangle(sx - 5, headY + 2, 10, 3), new Color(40, 45, 50));
+            // Eyes behind visor
+            var eyeColor = Flash > 0 ? Color.White : new Color(200, 200, 220);
+            sb.Draw(pixel, new Rectangle(sx - 3 + f, headY + 3, 2, 1), eyeColor);
+            sb.Draw(pixel, new Rectangle(sx + 1 + f, headY + 3, 2, 1), eyeColor);
+            
+            // Shield (large, on front)
+            if (_shieldUp)
+            {
+                // Shield raised - in front
+                sb.Draw(pixel, new Rectangle(sx + f * 10, sy - bodyH, f * 8, bodyH + 8), new Color(140, 160, 180));
+                sb.Draw(pixel, new Rectangle(sx + f * 12, sy - bodyH + 2, f * 4, bodyH + 4), new Color(160, 180, 200));
+                // Shield emblem
+                sb.Draw(pixel, new Rectangle(sx + f * 13, sy - bodyH + 10, f * 2, 6), new Color(180, 150, 50));
+            }
+            else
+            {
+                // Shield lowered - at side
+                sb.Draw(pixel, new Rectangle(sx + f * 8, sy - 4, f * 6, 12), new Color(140, 160, 180));
+            }
+            
+            // Weapon (mace/hammer)
+            sb.Draw(pixel, new Rectangle(sx - f * 8, sy - bodyH + 6, -f * 3, 10), new Color(80, 80, 80));
+            sb.Draw(pixel, new Rectangle(sx - f * 10, sy - bodyH + 4, -f * 4, 6), new Color(100, 100, 100));
+        }
+        else if (Type == "sniper")
+        {
+            // Sniper: 迷彩服，带狙击枪
+            int legOff = 0;
+            if (Grounded && Math.Abs(Vx) > 0.2f)
+                legOff = (int)(Math.Sin(Anim * 0.1f * Speed * 2) * 4);
+            else if (!Grounded) legOff = -2;
+
+            // Legs (camo)
+            sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 6, 5, 8), new Color(70, 85, 70));
+            sb.Draw(pixel, new Rectangle(sx + legOff, sy + 6, 5, 8), new Color(70, 85, 70));
+            sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 13, 6, 3), new Color(60, 75, 60));
+            sb.Draw(pixel, new Rectangle(sx - 1 - legOff, sy + 13, 6, 3), new Color(60, 75, 60));
+
+            // Body (camo)
+            int bodyH = H - 12;
+            sb.Draw(pixel, new Rectangle(sx - hw, sy - bodyH + 3, W, bodyH), color);
+            
+            // Camo pattern
+            sb.Draw(pixel, new Rectangle(sx - hw + 2, sy - bodyH + 5, 4, 3), new Color(90, 105, 90));
+            sb.Draw(pixel, new Rectangle(sx + hw - 6, sy - bodyH + 8, 3, 4), new Color(60, 75, 60));
+            
+            // Belt
+            sb.Draw(pixel, new Rectangle(sx - hw, sy + 3, W, 2), new Color(50, 40, 30));
+            
+            // Head (hooded)
+            int headY = sy - bodyH - 3;
+            sb.Draw(pixel, new Rectangle(sx - 5, headY, 10, 10), new Color(80, 95, 80));
+            // Hood
+            sb.Draw(pixel, new Rectangle(sx - 6, headY - 2, 12, 5), new Color(70, 85, 70));
+            // Eyes (focused)
+            var eyeColor = Flash > 0 ? Color.White : new Color(220, 220, 200);
+            sb.Draw(pixel, new Rectangle(sx - 3 + f, headY + 3, 2, 2), eyeColor);
+            sb.Draw(pixel, new Rectangle(sx + 1 + f, headY + 3, 2, 2), eyeColor);
+            
+            // Sniper rifle (long barrel)
+            sb.Draw(pixel, new Rectangle(sx + f * 8, sy - bodyH + 8, f * 14, 3), new Color(60, 60, 60));
+            sb.Draw(pixel, new Rectangle(sx + f * 20, sy - bodyH + 7, f * 4, 2), new Color(50, 50, 50));
+            // Scope
+            sb.Draw(pixel, new Rectangle(sx + f * 12, sy - bodyH + 5, 3, 3), new Color(80, 80, 80));
+            sb.Draw(pixel, new Rectangle(sx + f * 13, sy - bodyH + 6, 1, 1), new Color(150, 200, 255));
+            
+            // Aiming indicator
+            if (_aiming && Flash <= 0)
+            {
+                var aimColor = new Color(255, 100, 100, (int)(150 + Math.Sin(Anim * 0.2f) * 50));
+                sb.Draw(pixel, new Rectangle(sx + f * 22, sy - bodyH + 8, 2, 2), aimColor);
             }
         }
         else if (Fly)

@@ -145,6 +145,12 @@ public class Renderer
                     tex = _tileTextures["stone"];
 
                 SpriteBatch.Draw(tex, new Vector2(px, py), Color.White);
+
+                // Draw damage overlay
+                if (t.DamageLevel == 1)
+                    DrawCrackOverlay(px, py, x, y, false);
+                else if (t.DamageLevel == 2)
+                    DrawCrackOverlay(px, py, x, y, true);
             }
         }
 
@@ -184,27 +190,18 @@ public class Renderer
             DrawRect(Color.Yellow, bx + 7, by + 10, 2, 2);
         }
 
-        // Draw exit (improved with portal effect)
+        // Draw exit (simplified - no alpha issues)
         int ex = (int)(level.ExitX - camX);
         int ey = (int)level.ExitY;
-        float t_ms = Environment.TickCount;
-        int pulse = (int)(50 + 30 * Math.Sin(t_ms * 0.004f));
-        int pulse2 = (int)(30 + 20 * Math.Sin(t_ms * 0.006f + 1));
-
+        
         // Door frame (stone arch)
         DrawRect(new Color(80, 80, 80), ex - 2, ey - TILE * 3 - 4, TILE + 4, 4); // top
         DrawRect(new Color(80, 80, 80), ex - 2, ey - TILE * 3, 2, TILE * 3); // left
         DrawRect(new Color(80, 80, 80), ex + TILE, ey - TILE * 3, 2, TILE * 3); // right
         
-        // Portal glow (layered)
-        DrawRect(new Color(0, 255, 100, pulse / 2), ex - 4, ey - TILE * 3 - 4, TILE + 8, TILE * 3 + 8);
-        DrawRect(new Color(0, 255, 100, pulse), ex, ey - TILE * 3, TILE, TILE * 3);
-        DrawRect(new Color(100, 255, 150, pulse2), ex + 4, ey - TILE * 3 + 4, TILE - 8, TILE * 3 - 8);
-        
-        // Arrow indicator
-        int arrowY = ey - TILE * 3 - 20 + (int)(Math.Sin(t_ms * 0.005f) * 5);
-        DrawRect(new Color(255, 255, 0, 200), ex + TILE / 2 - 2, arrowY, 4, 8);
-        DrawRect(new Color(255, 255, 0, 200), ex + TILE / 2 - 4, arrowY + 4, 8, 4);
+        // Portal glow (solid green, no alpha to avoid white block issue)
+        DrawRect(new Color(0, 200, 50), ex, ey - TILE * 3, TILE, TILE * 3);
+        DrawRect(new Color(50, 255, 100), ex + 4, ey - TILE * 3 + 4, TILE - 8, TILE * 3 - 8);
     }
 
     private void EnsureTileTextures(MapTheme theme)
@@ -381,6 +378,102 @@ public class Renderer
             int h = 17;
             h = h * 31 + n;
             return h;
+        }
+    }
+
+    private void DrawCrackOverlay(int px, int py, int tileX, int tileY, bool heavyDamage)
+    {
+        // 使用tile坐标作为随机种子，确保裂纹位置一致
+        int seed = tileX * 1000 + tileY;
+        
+        if (heavyDamage)
+        {
+            // 严重受损 - 深色裂纹和缺口
+            Color crackDark = new Color(0, 0, 0, 120);
+            Color crackLight = new Color(255, 255, 255, 40);
+            
+            // 主裂纹 - 从中心向外延伸
+            int centerX = TILE / 2 + (Hash(seed) % 6) - 3;
+            int centerY = TILE / 2 + (Hash(seed + 1) % 6) - 3;
+            
+            // 绘制多条裂纹
+            for (int i = 0; i < 4; i++)
+            {
+                int angle = (Hash(seed + i * 10) % 360);
+                float rad = angle * MathF.PI / 180f;
+                int length = 6 + (Hash(seed + i * 20) % 5);
+                
+                for (int j = 0; j < length; j++)
+                {
+                    int dx = (int)(MathF.Cos(rad) * j);
+                    int dy = (int)(MathF.Sin(rad) * j);
+                    int crackX = centerX + dx;
+                    int crackY = centerY + dy;
+                    
+                    if (crackX >= 0 && crackX < TILE && crackY >= 0 && crackY < TILE)
+                    {
+                        DrawRect(crackDark, px + crackX, py + crackY, 1, 1);
+                        // 裂纹边缘高光
+                        if (j % 2 == 0 && crackX + 1 < TILE)
+                            DrawRect(crackLight, px + crackX + 1, py + crackY, 1, 1);
+                    }
+                }
+            }
+            
+            // 缺口 - 深色方块
+            for (int i = 0; i < 3; i++)
+            {
+                int chipX = Math.Abs(Hash(seed + i * 30)) % (TILE - 3);
+                int chipY = Math.Abs(Hash(seed + i * 40)) % (TILE - 3);
+                int chipW = 2 + (Math.Abs(Hash(seed + i * 50)) % 2);
+                int chipH = 2 + (Math.Abs(Hash(seed + i * 60)) % 2);
+                
+                DrawRect(crackDark, px + chipX, py + chipY, chipW, chipH);
+            }
+            
+            // 边缘破损效果
+            if (Hash(seed + 100) % 2 == 0)
+            {
+                DrawRect(crackDark, px, py, TILE, 2); // 顶部破损
+            }
+            if (Hash(seed + 101) % 2 == 0)
+            {
+                DrawRect(crackDark, px, py + TILE - 2, TILE, 2); // 底部破损
+            }
+        }
+        else
+        {
+            // 轻微受损 - 细小裂纹
+            Color crack = new Color(0, 0, 0, 80);
+            Color crackHighlight = new Color(255, 255, 255, 30);
+            
+            // 1-2条细裂纹
+            int crackCount = 1 + (Hash(seed) % 2);
+            
+            for (int i = 0; i < crackCount; i++)
+            {
+                int startX = Math.Abs(Hash(seed + i * 100)) % TILE;
+                int startY = Math.Abs(Hash(seed + i * 200)) % TILE;
+                int length = 3 + (Hash(seed + i * 300) % 4);
+                int angle = (Hash(seed + i * 400) % 360);
+                float rad = angle * MathF.PI / 180f;
+                
+                for (int j = 0; j < length; j++)
+                {
+                    int dx = (int)(MathF.Cos(rad) * j);
+                    int dy = (int)(MathF.Sin(rad) * j);
+                    int crackX = startX + dx;
+                    int crackY = startY + dy;
+                    
+                    if (crackX >= 0 && crackX < TILE && crackY >= 0 && crackY < TILE)
+                    {
+                        DrawRect(crack, px + crackX, py + crackY, 1, 1);
+                        // 细微高光
+                        if (j == length - 1 && crackX + 1 < TILE)
+                            DrawRect(crackHighlight, px + crackX + 1, py + crackY, 1, 1);
+                    }
+                }
+            }
         }
     }
 
@@ -1020,7 +1113,7 @@ public class Renderer
         }
     }
 
-    public void DrawBackground(float camX, Dictionary<string, Color>? theme = null)
+    public void DrawBackground(float camX, Dictionary<string, Color>? theme = null, string themeName = "")
     {
         if (theme == null)
             theme = new Dictionary<string, Color> { ["sky"] = new Color(26, 26, 46), ["bg_hill"] = new Color(15, 15, 26), ["bg_build"] = new Color(21, 21, 37) };
@@ -1028,43 +1121,160 @@ public class Renderer
         // Sky
         GraphicsDevice.Clear(theme["sky"]);
 
-        // Stars
-        for (int i = 0; i < 40; i++)
+        // Stars (more visible at night)
+        for (int i = 0; i < 50; i++)
         {
             int sx = Math.Abs(Hash(42 + i)) % W;
-            int sy = Math.Abs(Hash(142 + i)) % 300;
-            int brightness = 100 + (Math.Abs(Hash(i)) % 156);
+            int sy = Math.Abs(Hash(142 + i)) % 350;
+            int brightness = 120 + (Math.Abs(Hash(i)) % 136);
             var c = new Color(brightness, brightness, brightness);
-            // Need to draw stars on the render target, not via GraphicsDevice
-            // We'll draw them in BeginFrame
             DrawRect(c, sx, sy, 2, 2);
         }
 
-        // Far hills (slowest parallax)
-        for (int i = 0; i < 6; i++)
+        // Theme-specific background elements
+        if (themeName == "雪山")
         {
-            int mx = (int)((i * 280 - camX * 0.03f) % 1300) - 150;
-            DrawTriangle(theme["bg_hill"],
-                new Vector2(mx, 520), new Vector2(mx + 140, 360), new Vector2(mx + 280, 520));
+            // Snow mountains - far layer
+            for (int i = 0; i < 5; i++)
+            {
+                int mx = (int)((i * 320 - camX * 0.02f) % 1400) - 200;
+                DrawSnowMountain(theme["bg_hill"], mx, 380, 180, 200);
+            }
+            // Snow mountains - mid layer
+            for (int i = 0; i < 4; i++)
+            {
+                int mx = (int)((i * 280 - camX * 0.05f) % 1200) - 100;
+                DrawSnowMountain(theme["bg_build"], mx, 420, 150, 160);
+            }
+            // Snowflakes in background
+            for (int i = 0; i < 30; i++)
+            {
+                int sx = (int)((i * 47 - camX * 0.08f) % W);
+                int sy = (int)((i * 73 + Environment.TickCount * 0.02f) % (H - 100));
+                DrawRect(new Color(255, 255, 255, 80), sx, sy, 2, 2);
+            }
+        }
+        else if (themeName == "沙地")
+        {
+            // Desert dunes - far layer
+            for (int i = 0; i < 6; i++)
+            {
+                int dx = (int)((i * 260 - camX * 0.03f) % 1300) - 150;
+                DrawDesertDune(theme["bg_hill"], dx, 450, 160, 80);
+            }
+            // Desert dunes - mid layer
+            for (int i = 0; i < 5; i++)
+            {
+                int dx = (int)((i * 220 - camX * 0.06f) % 1200) - 80;
+                DrawDesertDune(theme["bg_build"], dx, 480, 140, 60);
+            }
+            // Distant pyramids
+            for (int i = 0; i < 2; i++)
+            {
+                int px = (int)((i * 500 - camX * 0.04f) % 1100) - 50;
+                DrawPyramid(new Color(120, 90, 40), px, 400, 80, 100);
+            }
+        }
+        else if (themeName == "火山")
+        {
+            // Volcanic mountains - far layer
+            for (int i = 0; i < 5; i++)
+            {
+                int mx = (int)((i * 300 - camX * 0.025f) % 1350) - 180;
+                DrawVolcanicMountain(new Color(40, 20, 15), mx, 400, 170, 180);
+            }
+            // Lava glow on horizon
+            for (int i = 0; i < 3; i++)
+            {
+                int gx = (int)((i * 400 - camX * 0.04f) % 1200) - 100;
+                DrawLavaGlow(gx, 480, 120, 60);
+            }
+            // Embers floating
+            for (int i = 0; i < 25; i++)
+            {
+                int ex = (int)((i * 53 - camX * 0.1f) % W);
+                int ey = (int)((i * 89 - Environment.TickCount * 0.03f) % (H - 150));
+                int alpha = 100 + (int)(Math.Sin(Environment.TickCount * 0.005f + i) * 50);
+                DrawRect(new Color(255, 100, 0, alpha), ex, ey, 2, 2);
+            }
+        }
+        else // 平原 or default
+        {
+            // Far hills (slowest parallax)
+            for (int i = 0; i < 6; i++)
+            {
+                int mx = (int)((i * 280 - camX * 0.03f) % 1300) - 150;
+                DrawTriangle(theme["bg_hill"],
+                    new Vector2(mx, 520), new Vector2(mx + 140, 360), new Vector2(mx + 280, 520));
+            }
+
+            // Mid buildings
+            for (int i = 0; i < 10; i++)
+            {
+                int bx = (int)((i * 170 - camX * 0.06f) % 1200) - 50;
+                int h = 60 + (Math.Abs(Hash(i)) % 80);
+                DrawRect(theme["bg_build"], bx, 450 - h, 28, h);
+                DrawRect(theme["bg_build"], bx + 38, 460 - h + 30, 22, h - 30);
+            }
         }
 
-        // Mid buildings
-        for (int i = 0; i < 10; i++)
-        {
-            int bx = (int)((i * 170 - camX * 0.06f) % 1200) - 50;
-            int h = 60 + (Math.Abs(Hash(i)) % 80);
-            DrawRect(theme["bg_build"], bx, 450 - h, 28, h);
-            DrawRect(theme["bg_build"], bx + 38, 460 - h + 30, 22, h - 30);
-        }
-
-        // Near clouds
+        // Near clouds (all themes)
         for (int i = 0; i < 5; i++)
         {
             int cx = (int)((i * 350 - camX * 0.12f) % 1400) - 100;
             int cy = 80 + (i * 37) % 120;
-            // Simple cloud rectangle
             var cloudColor = new Color(255, 255, 255, 30);
             DrawRect(cloudColor, cx, cy, 60 + (i * 23) % 40, 20 + (i * 17) % 15);
+        }
+    }
+
+    private void DrawSnowMountain(Color color, int x, int y, int w, int h)
+    {
+        // Mountain body
+        DrawTriangle(color, new Vector2(x, y + h), new Vector2(x + w / 2, y), new Vector2(x + w, y + h));
+        // Snow cap
+        Color snow = new Color(240, 245, 250);
+        DrawTriangle(snow, new Vector2(x + w / 2 - 20, y + 30), new Vector2(x + w / 2, y), new Vector2(x + w / 2 + 20, y + 30));
+    }
+
+    private void DrawDesertDune(Color color, int x, int y, int w, int h)
+    {
+        // Rounded dune shape
+        for (int i = 0; i < h; i += 2)
+        {
+            float t = (float)i / h;
+            int layerW = (int)(w * Math.Sin(t * Math.PI));
+            if (layerW < 2) continue;
+            DrawRect(color, x + (w - layerW) / 2, y + i, layerW, 2);
+        }
+    }
+
+    private void DrawPyramid(Color color, int x, int y, int w, int h)
+    {
+        DrawTriangle(color, new Vector2(x, y + h), new Vector2(x + w / 2, y), new Vector2(x + w, y + h));
+        // Shadow side
+        Color shadow = new Color(color.R - 30, color.G - 30, color.B - 30);
+        DrawTriangle(shadow, new Vector2(x + w / 2, y), new Vector2(x + w, y + h), new Vector2(x + w / 2, y + h));
+    }
+
+    private void DrawVolcanicMountain(Color color, int x, int y, int w, int h)
+    {
+        DrawTriangle(color, new Vector2(x, y + h), new Vector2(x + w / 2, y), new Vector2(x + w, y + h));
+        // Crater at top
+        Color crater = new Color(60, 30, 20);
+        DrawRect(crater, x + w / 2 - 15, y, 30, 10);
+    }
+
+    private void DrawLavaGlow(int x, int y, int w, int h)
+    {
+        float t = Environment.TickCount * 0.002f;
+        int pulse = (int)(Math.Sin(t) * 20);
+        Color glow = new Color(255, 80 + pulse, 0, 100);
+        for (int i = 0; i < h; i += 2)
+        {
+            float ratio = (float)i / h;
+            int layerW = (int)(w * (1 - ratio * 0.5f));
+            DrawRect(glow, x + (w - layerW) / 2, y + i, layerW, 2);
         }
     }
 

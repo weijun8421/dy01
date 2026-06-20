@@ -10,8 +10,10 @@ public class TileData
     public string Type = "air";
     public bool Solid;
     public int HP;
+    public int MaxHP;
     public int X, Y;
     public int Depth; // 0=air, 1=surface, 2+=underground
+    public int DamageLevel; // 0=undamaged, 1=cracked, 2=heavily damaged
 }
 
 public class Decoration
@@ -206,7 +208,7 @@ public class Level
                 else if (y < groundProfile[x] + 3) depth = 2; // shallow underground
                 else if (y < groundProfile[x] + 6) depth = 3; // medium underground
                 else depth = 4; // deep underground
-                Tiles[y][x] = new TileData { Type = bedrock ? "bedrock" : "ground", Solid = true, HP = bedrock ? 999 : 5, X = x, Y = y, Depth = depth };
+                Tiles[y][x] = new TileData { Type = bedrock ? "bedrock" : "ground", Solid = true, HP = bedrock ? 999 : 5, MaxHP = bedrock ? 999 : 5, X = x, Y = y, Depth = depth };
             }
 
         // Add caves (underground chambers)
@@ -270,7 +272,7 @@ public class Level
                     for (int x = px; x < Math.Min(px + pw, W); x++)
                     {
                         if (!Tiles[layerY][x].Solid)
-                            Tiles[layerY][x] = new TileData { Type = "plat", Solid = true, HP = 2, X = x, Y = layerY };
+                            Tiles[layerY][x] = new TileData { Type = "plat", Solid = true, HP = 2, MaxHP = 2, X = x, Y = layerY };
                     }
                 }
                 
@@ -289,7 +291,7 @@ public class Level
                         for (int x = stepX; x < Math.Min(stepX + 2, W); x++)
                         {
                             if (!Tiles[stepY][x].Solid)
-                                Tiles[stepY][x] = new TileData { Type = "plat", Solid = true, HP = 2, X = x, Y = stepY };
+                                Tiles[stepY][x] = new TileData { Type = "plat", Solid = true, HP = 2, MaxHP = 2, X = x, Y = stepY };
                         }
                     }
                 }
@@ -315,7 +317,7 @@ public class Level
                     if (y >= 0 && y < H && wallX < W)
                     {
                         if (!Tiles[y][wallX].Solid)
-                            Tiles[y][wallX] = new TileData { Type = "wall", Solid = true, HP = 5, X = wallX, Y = y };
+                            Tiles[y][wallX] = new TileData { Type = "wall", Solid = true, HP = 5, MaxHP = 5, X = wallX, Y = y };
                     }
                 }
             }
@@ -398,7 +400,7 @@ public class Level
             int pw = _rng.Next(3, 7);
             for (int x = cx; x < Math.Min(cx + pw, W); x++)
                 if (!Tiles[cy][x].Solid)
-                    Tiles[cy][x] = new TileData { Type = "plat", Solid = true, HP = 2, X = x, Y = cy };
+                    Tiles[cy][x] = new TileData { Type = "plat", Solid = true, HP = 2, MaxHP = 2, X = x, Y = cy };
 
             cx += pw + _rng.Next(1, 4);
         }
@@ -552,13 +554,37 @@ public class Level
         if (ty < 0 || ty >= Tiles.Count || tx < 0 || tx >= Tiles[0].Count) return;
         var t = Tiles[ty][tx];
         if (!t.Solid) return;
-        t.HP -= dmg;
-        if (t.HP <= 0)
+        
+        // 初始化MaxHP（如果未设置）
+        if (t.MaxHP == 0)
         {
+            t.MaxHP = t.HP;
+        }
+        
+        t.HP -= dmg;
+        
+        // 计算损伤等级
+        float hpRatio = (float)t.HP / t.MaxHP;
+        if (hpRatio <= 0)
+        {
+            // 完全破坏
             t.Solid = false;
             t.Type = "air";
-            particles.SpawnBurst(tx * Data.Config.TILE + 8, ty * Data.Config.TILE + 8, 5, 3,
-                Theme["ground"], (15, 30), (2, 5), (-4, 0));
+            t.DamageLevel = 0;
+            particles.SpawnBurst(tx * Data.Config.TILE + 8, ty * Data.Config.TILE + 8, 8, 4,
+                Theme["ground"], (20, 40), (3, 6), (-5, 0));
+        }
+        else if (hpRatio < 0.33f)
+        {
+            // 严重受损
+            t.DamageLevel = 2;
+            particles.SpawnBurst(tx * Data.Config.TILE + 8, ty * Data.Config.TILE + 8, 3, 2,
+                Theme["ground"], (10, 20), (2, 3), (-3, 0));
+        }
+        else if (hpRatio < 0.66f)
+        {
+            // 轻微受损
+            t.DamageLevel = 1;
         }
     }
 

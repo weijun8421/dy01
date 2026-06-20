@@ -311,6 +311,12 @@ public class HUD
             int minutes = gameTime / 60;
             int seconds = gameTime % 60;
             renderer.DrawString($"TIME {minutes}:{seconds:D2}", new Vector2(20, 56), new Color(180, 220, 255), 0.8f);
+
+            // Buff状态图标显示
+            if (player.ActiveBuffs.Count > 0)
+            {
+                DrawBuffIcons(renderer, player);
+            }
         }
 
         // Score/Wave with enhanced styling
@@ -391,7 +397,87 @@ public class HUD
         // Minimap
         if (level != null && player != null)
         {
-            DrawMinimap(renderer, player, player2, level);
+            DrawMinimap(renderer, player, player2, level, enemies);
+        }
+
+        // 受击红色闪屏特效
+        if (player != null && player.HitFlash > 0)
+        {
+            float alpha = player.HitFlash / 15f * 0.3f;
+            renderer.DrawRect(new Color(255, 0, 0, (int)(alpha * 255)), 0, 0, Config.W, Config.H);
+        }
+    }
+
+    private void DrawBuffIcons(Renderer renderer, Player player)
+    {
+        // 在HP面板下方显示Buff图标
+        int startY = 80;
+        int iconSize = 18;
+        int spacing = 3;
+        int iconsPerRow = 8;
+        int startX = 12;
+
+        // 为每种buff类型分配颜色
+        var iconColors = new Dictionary<string, Color>
+        {
+            ["dmg"] = new Color(255, 80, 80),
+            ["speed"] = new Color(80, 200, 255),
+            ["firerate"] = new Color(255, 200, 50),
+            ["hp"] = new Color(80, 255, 80),
+            ["explosion"] = new Color(255, 150, 50),
+            ["pierce"] = new Color(200, 100, 255),
+            ["double"] = new Color(255, 100, 200),
+            ["berserk"] = new Color(255, 50, 50),
+            ["nuke"] = new Color(255, 255, 50),
+            ["vampire"] = new Color(200, 50, 50),
+            ["regen"] = new Color(50, 255, 100),
+            ["burn"] = new Color(255, 120, 0),
+            ["laser"] = new Color(0, 255, 255),
+            ["burst"] = new Color(255, 180, 0),
+            ["chain"] = new Color(150, 100, 255),
+            ["shield"] = new Color(100, 200, 255),
+            ["turret"] = new Color(180, 180, 180),
+            ["stun"] = new Color(255, 255, 100),
+            ["dragon"] = new Color(255, 80, 0),
+            ["infa"] = new Color(100, 255, 100),
+            ["deathblow"] = new Color(200, 50, 50),
+            ["crit"] = new Color(255, 200, 0),
+            ["flame"] = new Color(255, 100, 0),
+            ["cluster"] = new Color(200, 150, 50),
+            ["slug"] = new Color(180, 180, 200),
+            ["sg"] = new Color(255, 150, 50),
+            ["reload"] = new Color(200, 200, 100),
+            ["extra"] = new Color(100, 255, 200),
+        };
+
+        int idx = 0;
+        foreach (var buff in player.ActiveBuffs)
+        {
+            if (idx >= 10) break;
+            int row = idx / iconsPerRow;
+            int col = idx % iconsPerRow;
+            int x = startX + col * (iconSize + spacing);
+            int y = startY + row * (iconSize + spacing);
+
+            // 背景框
+            var tierColor = Config.TIER_COLORS[buff.Tier];
+            renderer.DrawRect(new Color(0, 0, 0, 200), x, y, iconSize, iconSize);
+
+            // 内部图标色块
+            Color iconColor = Color.White;
+            if (iconColors.TryGetValue(buff.Id, out var c))
+                iconColor = c;
+
+            int margin = 3;
+            renderer.DrawRect(iconColor, x + margin, y + margin, iconSize - margin * 2, iconSize - margin * 2);
+
+            // 品质边框
+            renderer.DrawRect(tierColor, x, y, iconSize, 2);
+            renderer.DrawRect(tierColor, x, y + iconSize - 2, iconSize, 2);
+            renderer.DrawRect(tierColor, x, y, 2, iconSize);
+            renderer.DrawRect(tierColor, x + iconSize - 2, y, 2, iconSize);
+
+            idx++;
         }
     }
 
@@ -451,7 +537,7 @@ public class HUD
         renderer.DrawStringCentered($"{(int)boss.Hp} / {(int)boss.MaxHp}", new Vector2(Config.W / 2f, barY + 2), Color.White, 0.9f);
     }
 
-    private void DrawMinimap(Renderer renderer, Player player, Player? player2, Level level)
+    private void DrawMinimap(Renderer renderer, Player player, Player? player2, Level level, List<Enemy>? enemies = null)
     {
         int mapW = 160;
         int mapH = 100;
@@ -489,6 +575,25 @@ public class HUD
         int exitX = mapX + (int)(level.ExitX * scaleX);
         int exitY = mapY + (int)(level.ExitY * scaleY);
         renderer.DrawRect(new Color(0, 255, 0, 200), exitX - 3, exitY - 3, 6, 6);
+
+        // Draw enemies
+        if (enemies != null)
+        {
+            foreach (var enemy in enemies)
+            {
+                if (enemy.Dead) continue;
+                int eX = mapX + (int)(enemy.X * scaleX);
+                int eY = mapY + (int)(enemy.Y * scaleY);
+                
+                // 敌人用黄色点显示
+                Color enemyColor = enemy.Type == "boss" 
+                    ? new Color(255, 100, 255, 255)  // Boss用紫色
+                    : new Color(255, 255, 0, 200);   // 普通敌人用黄色
+                
+                int size = enemy.Type == "boss" ? 5 : 3;
+                renderer.DrawRect(enemyColor, eX - size / 2, eY - size / 2, size, size);
+            }
+        }
 
         // Draw player
         int p1X = mapX + (int)(player.X * scaleX);

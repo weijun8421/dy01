@@ -75,13 +75,21 @@ public class WeatherParticle
 public class WeatherSystem
 {
     private List<WeatherParticle> _particles = new();
+    private List<EnvironmentalParticle> _envParticles = new();
     private Random _rng = new();
     private WeatherType _currentWeather = WeatherType.Clear;
     private int _weatherTimer = 0;
     private float _windStrength = 0f;
+    private string _currentTheme = "";
     
     public WeatherType CurrentWeather => _currentWeather;
     public float WindStrength => _windStrength;
+
+    public void SetTheme(string themeName)
+    {
+        _currentTheme = themeName;
+        _envParticles.Clear();
+    }
 
     public void Update(Camera camera)
     {
@@ -107,8 +115,12 @@ public class WeatherSystem
             SpawnWeatherParticles(camera);
         }
 
+        // 生成主题环境粒子
+        SpawnEnvironmentalParticles(camera);
+
         // 更新粒子
         _particles.RemoveAll(p => !p.Update());
+        _envParticles.RemoveAll(p => !p.Update());
     }
 
     private void SpawnWeatherParticles(Camera camera)
@@ -173,10 +185,178 @@ public class WeatherSystem
         {
             p.Draw(sb, pixel, camX);
         }
+        foreach (var p in _envParticles)
+        {
+            p.Draw(sb, pixel, camX);
+        }
     }
 
     public void Clear()
     {
         _particles.Clear();
+        _envParticles.Clear();
+    }
+
+    private void SpawnEnvironmentalParticles(Camera camera)
+    {
+        float camX = camera.OffsetX;
+        
+        // Theme-specific environmental particles
+        if (_currentTheme == "平原")
+        {
+            // Falling leaves
+            if (_rng.NextDouble() < 0.03)
+            {
+                float x = camX + (float)(_rng.NextDouble() * (Config.W + 100)) - 50;
+                float y = -10;
+                Color leafColor = _rng.NextDouble() < 0.5 
+                    ? new Color(180, 120, 40, 200)  // Brown leaf
+                    : new Color(200, 160, 60, 200); // Golden leaf
+                _envParticles.Add(new EnvironmentalParticle(x, y, 
+                    (float)(_rng.NextDouble() * 0.5f - 0.25f), 
+                    0.5f + (float)(_rng.NextDouble() * 0.3f),
+                    leafColor, 300, 3, EnvParticleType.Leaf));
+            }
+            // Fireflies (occasional)
+            if (_rng.NextDouble() < 0.01)
+            {
+                float x = camX + (float)(_rng.NextDouble() * Config.W);
+                float y = 200 + (float)(_rng.NextDouble() * 300);
+                _envParticles.Add(new EnvironmentalParticle(x, y,
+                    (float)(_rng.NextDouble() * 0.3f - 0.15f),
+                    (float)(_rng.NextDouble() * 0.2f - 0.1f),
+                    new Color(200, 255, 100, 180), 400, 2, EnvParticleType.Firefly));
+            }
+        }
+        else if (_currentTheme == "沙地")
+        {
+            // Tumbling dust/debris
+            if (_rng.NextDouble() < 0.02)
+            {
+                float x = camX - 20;
+                float y = 400 + (float)(_rng.NextDouble() * 150);
+                _envParticles.Add(new EnvironmentalParticle(x, y,
+                    1.5f + (float)(_rng.NextDouble() * 1f),
+                    (float)(_rng.NextDouble() * 0.5f - 0.25f),
+                    new Color(180, 150, 100, 150), 250, 2, EnvParticleType.Dust));
+            }
+        }
+        else if (_currentTheme == "雪山")
+        {
+            // Extra snowflakes (lighter than weather snow)
+            if (_rng.NextDouble() < 0.05)
+            {
+                float x = camX + (float)(_rng.NextDouble() * (Config.W + 50)) - 25;
+                float y = -5;
+                _envParticles.Add(new EnvironmentalParticle(x, y,
+                    (float)(_rng.NextDouble() * 0.4f - 0.2f),
+                    0.3f + (float)(_rng.NextDouble() * 0.4f),
+                    new Color(255, 255, 255, 120), 500, 2, EnvParticleType.Snowflake));
+            }
+        }
+        else if (_currentTheme == "火山")
+        {
+            // Rising embers/sparks
+            if (_rng.NextDouble() < 0.04)
+            {
+                float x = camX + (float)(_rng.NextDouble() * Config.W);
+                float y = Config.H + 10;
+                _envParticles.Add(new EnvironmentalParticle(x, y,
+                    (float)(_rng.NextDouble() * 0.6f - 0.3f),
+                    -(1f + (float)(_rng.NextDouble() * 1.5f)),
+                    new Color(255, 120 + _rng.Next(80), 0, 220), 350, 2, EnvParticleType.Ember));
+            }
+            // Ash particles
+            if (_rng.NextDouble() < 0.03)
+            {
+                float x = camX + (float)(_rng.NextDouble() * (Config.W + 100)) - 50;
+                float y = -10;
+                _envParticles.Add(new EnvironmentalParticle(x, y,
+                    (float)(_rng.NextDouble() * 0.3f - 0.15f),
+                    0.4f + (float)(_rng.NextDouble() * 0.3f),
+                    new Color(80, 80, 80, 100), 600, 2, EnvParticleType.Ash));
+            }
+        }
+    }
+}
+
+public enum EnvParticleType
+{
+    Leaf,
+    Firefly,
+    Dust,
+    Snowflake,
+    Ember,
+    Ash
+}
+
+public class EnvironmentalParticle
+{
+    private static readonly Random _sharedRng = new();
+    public float X, Y, Vx, Vy, Life, MaxLife, Size;
+    public Color Color;
+    public EnvParticleType Type;
+    private float _phase;
+
+    public EnvironmentalParticle(float x, float y, float vx, float vy, Color color, float life, float size, EnvParticleType type)
+    {
+        X = x; Y = y; Vx = vx; Vy = vy; Color = color; Life = life; MaxLife = life; Size = size; Type = type;
+        _phase = (float)(_sharedRng.NextDouble() * Math.PI * 2);
+    }
+
+    public bool Update()
+    {
+        _phase += 0.05f;
+        
+        switch (Type)
+        {
+            case EnvParticleType.Leaf:
+                // Leaves drift and sway
+                Vx += (float)(Math.Sin(_phase) * 0.02f);
+                Vy += 0.005f; // gentle gravity
+                break;
+            case EnvParticleType.Firefly:
+                // Fireflies wander randomly
+                Vx += (float)(Math.Sin(_phase * 0.7f) * 0.03f);
+                Vy += (float)(Math.Cos(_phase * 0.5f) * 0.02f);
+                // Flicker
+                float flicker = (float)(Math.Sin(_phase * 3) * 0.3f + 0.7f);
+                Color = new Color(Color.R, Color.G, Color.B, (int)(180 * flicker));
+                break;
+            case EnvParticleType.Dust:
+                // Dust tumbles along ground
+                Vy += 0.01f;
+                break;
+            case EnvParticleType.Snowflake:
+                // Snowflakes drift
+                Vx += (float)(Math.Sin(_phase * 0.8f) * 0.015f);
+                break;
+            case EnvParticleType.Ember:
+                // Embers rise and fade
+                Vx += (float)(Math.Sin(_phase * 1.2f) * 0.04f);
+                Vy *= 0.99f; // slow down rise
+                break;
+            case EnvParticleType.Ash:
+                // Ash drifts down slowly
+                Vx += (float)(Math.Sin(_phase * 0.6f) * 0.01f);
+                break;
+        }
+        
+        X += Vx;
+        Y += Vy;
+        Life--;
+        return Life > 0 && Y < Config.H + 50 && Y > -50;
+    }
+
+    public void Draw(SpriteBatch sb, Texture2D pixel, float camX)
+    {
+        float a = Math.Min(1f, Life / MaxLife * 2f);
+        var c = Color * a;
+        
+        int px = (int)(X - camX);
+        int py = (int)Y;
+        int sz = (int)Size;
+        
+        sb.Draw(pixel, new Rectangle(px, py, sz, sz), c);
     }
 }

@@ -29,7 +29,14 @@ public static class AudioManager
         ["kill"] = 4,
         ["jump"] = 3,
         ["dash"] = 5,
+        ["ambient"] = 60, // 环境音冷却1秒
     };
+
+    // 环境音状态
+    private static string _currentTheme = "";
+    private static string _currentWeather = "";
+    private static int _ambientTimer = 0;
+    private static bool _ambientEnabled = true;
 
     public static void Init()
     {
@@ -49,6 +56,186 @@ public static class AudioManager
         {
             if (_cooldowns[key] > 0) _cooldowns[key]--;
         }
+
+        // 环境音更新
+        if (_ambientEnabled)
+        {
+            _ambientTimer--;
+            if (_ambientTimer <= 0)
+            {
+                PlayAmbientSound();
+                _ambientTimer = 120 + _rng.Next(180); // 2-5秒间隔
+            }
+        }
+    }
+
+    public static void SetTheme(string themeName)
+    {
+        _currentTheme = themeName;
+    }
+
+    public static void SetWeather(string weatherType)
+    {
+        _currentWeather = weatherType;
+    }
+
+    public static void SetAmbientEnabled(bool enabled)
+    {
+        _ambientEnabled = enabled;
+    }
+
+    private static void PlayAmbientSound()
+    {
+        if (!_ambientEnabled || !CanPlay("ambient")) return;
+        SetCooldown("ambient");
+
+        // 天气音效优先
+        if (_currentWeather == "Rain")
+        {
+            Play(GenerateAmbientRain());
+            return;
+        }
+        if (_currentWeather == "Sandstorm")
+        {
+            Play(GenerateAmbientWind());
+            return;
+        }
+
+        // 主题环境音
+        byte[]? data = _currentTheme switch
+        {
+            "平原" => GenerateAmbientNature(),
+            "雪山" => GenerateAmbientSnow(),
+            "沙地" => GenerateAmbientDesert(),
+            "火山" => GenerateAmbientVolcano(),
+            _ => null
+        };
+
+        if (data != null)
+            Play(data);
+    }
+
+    /// <summary>生成自然环境音（鸟鸣、风声）</summary>
+    private static byte[] GenerateAmbientNature()
+    {
+        int samples = (int)(_sampleRate * 0.3f);
+        byte[] data = new byte[samples * 2];
+        float phase = 0;
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 4);
+            // 鸟鸣频率
+            float freq = 1200 + 400 * (float)Math.Sin(t * 20);
+            phase += freq / _sampleRate;
+            if (phase > 1) phase -= 1;
+            float val = (float)Math.Sin(phase * Math.PI * 2);
+            val *= envelope * 0.15f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
+    }
+
+    /// <summary>生成雪地环境音（寒风）</summary>
+    private static byte[] GenerateAmbientSnow()
+    {
+        int samples = (int)(_sampleRate * 0.4f);
+        byte[] data = new byte[samples * 2];
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 2);
+            float noise = (float)(_rng.NextDouble() * 2 - 1);
+            // 低频风声
+            float val = noise * envelope * 0.1f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
+    }
+
+    /// <summary>生成沙漠环境音（干燥风声）</summary>
+    private static byte[] GenerateAmbientDesert()
+    {
+        int samples = (int)(_sampleRate * 0.35f);
+        byte[] data = new byte[samples * 2];
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 3);
+            float noise = (float)(_rng.NextDouble() * 2 - 1);
+            // 中频风声
+            float val = noise * envelope * 0.08f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
+    }
+
+    /// <summary>生成火山环境音（低沉轰鸣）</summary>
+    private static byte[] GenerateAmbientVolcano()
+    {
+        int samples = (int)(_sampleRate * 0.5f);
+        byte[] data = new byte[samples * 2];
+        float phase = 0;
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 2);
+            float noise = (float)(_rng.NextDouble() * 2 - 1);
+            // 低频轰鸣
+            float freq = 60 + 20 * (float)Math.Sin(t * 5);
+            phase += freq / _sampleRate;
+            if (phase > 1) phase -= 1;
+            float val = (float)Math.Sin(phase * Math.PI * 2) * 0.5f + noise * 0.3f;
+            val *= envelope * 0.12f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
+    }
+
+    /// <summary>生成雨声环境音</summary>
+    private static byte[] GenerateAmbientRain()
+    {
+        int samples = (int)(_sampleRate * 0.25f);
+        byte[] data = new byte[samples * 2];
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 5);
+            float noise = (float)(_rng.NextDouble() * 2 - 1);
+            // 高频雨滴声
+            float val = noise * envelope * 0.1f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
+    }
+
+    /// <summary>生成风声环境音</summary>
+    private static byte[] GenerateAmbientWind()
+    {
+        int samples = (int)(_sampleRate * 0.4f);
+        byte[] data = new byte[samples * 2];
+        for (int i = 0; i < samples; i++)
+        {
+            float t = i / (float)samples;
+            float envelope = (float)Math.Exp(-t * 1.5f);
+            float noise = (float)(_rng.NextDouble() * 2 - 1);
+            // 强风声
+            float val = noise * envelope * 0.15f;
+            short s = (short)(val * 32767);
+            data[i * 2] = (byte)(s & 0xFF);
+            data[i * 2 + 1] = (byte)((s >> 8) & 0xFF);
+        }
+        return data;
     }
 
     private static bool CanPlay(string name)

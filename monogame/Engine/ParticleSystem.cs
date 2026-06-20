@@ -9,20 +9,30 @@ public class Particle
 {
     public float X, Y, Vx, Vy, Life, MaxLife, Size;
     public Color Color;
+    public bool Active;
 
-    public Particle(float x, float y, float vx, float vy, Color color, float life, float size)
+    public Particle()
+    {
+        Active = false;
+    }
+
+    public void Init(float x, float y, float vx, float vy, Color color, float life, float size)
     {
         X = x; Y = y; Vx = vx; Vy = vy; Color = color; Life = life; MaxLife = life; Size = size;
+        Active = true;
     }
 
     public bool Update()
     {
+        if (!Active) return false;
         X += Vx; Y += Vy; Vy += 0.12f; Life--;
-        return Life > 0;
+        if (Life <= 0) Active = false;
+        return Active;
     }
 
     public void Draw(SpriteBatch sb, Texture2D pixel, float camX)
     {
+        if (!Active) return;
         float a = Life / MaxLife;
         var c = Color * a;
         sb.Draw(pixel, new Rectangle((int)(X - camX), (int)Y, (int)Size, (int)Size), c);
@@ -53,12 +63,32 @@ public class ParticleSystem
     public List<Particle> Particles = new();
     public List<FloatText> FloatTexts = new();
     private Random _rng = new();
+    private Queue<Particle> _pool = new();
 
-    public void Clear() { Particles.Clear(); FloatTexts.Clear(); }
+    public void Clear() 
+    { 
+        foreach (var p in Particles)
+        {
+            p.Active = false;
+            _pool.Enqueue(p);
+        }
+        Particles.Clear(); 
+        FloatTexts.Clear(); 
+    }
 
     public void Spawn(float x, float y, float vx, float vy, Color color, float life, float size)
     {
-        Particles.Add(new Particle(x, y, vx, vy, color, life, size));
+        Particle p;
+        if (_pool.Count > 0)
+        {
+            p = _pool.Dequeue();
+        }
+        else
+        {
+            p = new Particle();
+        }
+        p.Init(x, y, vx, vy, color, life, size);
+        Particles.Add(p);
     }
 
     public void SpawnBurst(float x, float y, int count, float spread, Color color,
@@ -84,7 +114,16 @@ public class ParticleSystem
 
     public void Update()
     {
-        Particles.RemoveAll(p => !p.Update());
+        // 回收失活粒子到对象池，避免频繁GC
+        for (int i = Particles.Count - 1; i >= 0; i--)
+        {
+            var p = Particles[i];
+            if (!p.Update())
+            {
+                _pool.Enqueue(p);
+                Particles.RemoveAt(i);
+            }
+        }
         FloatTexts.RemoveAll(t => !t.Update());
     }
 

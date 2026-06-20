@@ -18,6 +18,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private InputManager _input = null!;
     private ParticleSystem _particles = null!;
     private WeatherSystem _weather = null!;
+    private LightingSystem _lighting = null!;
     private SpriteFont? _font;
 
     // UI
@@ -95,6 +96,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _input = new InputManager();
         _particles = new ParticleSystem();
         _weather = new WeatherSystem();
+        _lighting = new LightingSystem();
 
         base.Initialize();
     }
@@ -236,6 +238,12 @@ public class GameMain : Microsoft.Xna.Framework.Game
             _player2.Update(keys, _level!, _bullets, _particles, _renderer.Camera);
         }
 
+        // Update player light
+        if (_player != null && !_player.Dead)
+        {
+            _lighting.SetPlayerLight(_player.X, _player.Y - _player.H / 2, 120, new Color(255, 240, 200));
+        }
+
         // Camera
         float tx = _player?.X ?? 0;
         if (_player2 != null && !_player2.Dead)
@@ -260,6 +268,28 @@ public class GameMain : Microsoft.Xna.Framework.Game
             return dead;
         });
 
+        // 处理敌人呼叫支援
+        foreach (var e in _enemies)
+        {
+            if (e.CallForHelp)
+            {
+                e.CallForHelp = false;
+                // 在范围内寻找未警觉的敌人并提升其警觉等级
+                foreach (var other in _enemies)
+                {
+                    if (other == e || other.AlertLevel >= 2) continue;
+                    float dist = MathF.Sqrt((e.X - other.X) * (e.X - other.X) + (e.Y - other.Y) * (e.Y - other.Y));
+                    if (dist < 180f)
+                    {
+                        other.AlertLevel = 2;
+                        other.AlertTimer = 120;
+                        // 显示呼叫支援的视觉效果
+                        _particles.SpawnText(other.X, other.Y - other.H, "!", new Color(255, 100, 100), 12);
+                    }
+                }
+            }
+        }
+
         if (_waveRemain > 0 && _enemies.Count < 7)
             SpawnEnemies(Math.Min(3, _waveRemain));
 
@@ -272,6 +302,8 @@ public class GameMain : Microsoft.Xna.Framework.Game
         // Particles and explosions
         _particles.Update();
         _weather.Update(_renderer.Camera);
+        AudioManager.SetWeather(_weather.CurrentWeather.ToString());
+        _lighting.Update();
         _explosions.RemoveAll(e => !e.Update());
         ApplyExplosionDamage();
 
@@ -450,8 +482,17 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _explosions.Clear();
         _barrelExplosions.Clear();
         _pickups.Clear();
+        _lighting.Clear();
         _renderer.Camera.Reset();
         _hitstop = 0;
+        
+        // Set theme for weather and lighting
+        if (_level != null)
+        {
+            _weather.SetTheme(_level.Theme.Name);
+            _lighting.SetTheme(_level.Theme.Name);
+            AudioManager.SetTheme(_level.Theme.Name);
+        }
         
         // Start transition animation
         _transitioning = true;
@@ -912,7 +953,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
             if (_level != null)
             {
                 var th = _level.Theme;
-                _renderer.DrawBackground(_renderer.Camera.OffsetX, th.Colors);
+                _renderer.DrawBackground(_renderer.Camera.OffsetX, th.Colors, th.Name);
                 _renderer.DrawLevel(_level);
             }
 
@@ -940,6 +981,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
             
             // Weather (drawn on top of everything)
             _weather.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
+            
+            // Lighting effects
+            _lighting.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX, Config.W, Config.H);
 
             // Crosshairs
             if (_state == State.Playing)

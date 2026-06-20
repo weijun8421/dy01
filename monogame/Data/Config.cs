@@ -145,6 +145,10 @@ public static class Config
         ["bomber"] = new EnemyTypeDef { W = 22, H = 26, HP = 35, Speed = 2.5f, Damage = 40, Color = new Color(255, 100, 0), Score = 350 },
         ["healer"] = new EnemyTypeDef { W = 20, H = 28, HP = 40, Speed = 1.0f, Damage = 5, Color = new Color(100, 255, 100), Score = 400 },
         ["boss"] = new EnemyTypeDef { W = 55, H = 55, HP = 900, Speed = 0.7f, Damage = 30, Color = new Color(102, 0, 0), Score = 5000 },
+        // 新敌人类型
+        ["ninja"] = new EnemyTypeDef { W = 16, H = 26, HP = 18, Speed = 3.0f, Damage = 15, Color = new Color(60, 60, 80), Score = 300 },
+        ["shield"] = new EnemyTypeDef { W = 22, H = 30, HP = 80, Speed = 0.9f, Damage = 10, Color = new Color(100, 120, 140), Score = 350 },
+        ["sniper"] = new EnemyTypeDef { W = 18, H = 28, HP = 15, Speed = 0.5f, Damage = 25, Color = new Color(80, 100, 80), Score = 400 },
     };
 
     // Colors

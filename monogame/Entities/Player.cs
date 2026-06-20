@@ -19,6 +19,7 @@ public class Player
     public float Anim = 0, AnimSpd = 0;
     public int RespawnTimer = 0, Invincible = 0, DashCooldown = 0;
     public int Coyote = 0, JumpBuffer = 0;
+    public int HitFlash = 0; // 受击闪屏计时器
 
     // Weapons - single weapon mode
     public WeaponDef Weapon;
@@ -58,6 +59,9 @@ public class Player
     public void Update(Dictionary<string, bool> keys, Level level, List<Bullet> bullets, ParticleSystem particles, Camera? camera = null)
     {
         if (Dead) { RespawnTimer--; return; }
+
+        // 递减受击闪屏计时器
+        if (HitFlash > 0) HitFlash--;
 
         string p = IsP2 ? "p2_" : "p1_";
         bool left = keys.GetValueOrDefault(p + "left");
@@ -339,6 +343,7 @@ public class Player
 
         Hp -= dmg;
         Invincible = 28;
+        HitFlash = 15; // 设置受击闪屏时间
         shakeFunc(7);
         AudioManager.Hit();
         particles.SpawnBurst(X, Y, 10, 4, Color.Red, (10, 25), (2, 5), (-4, 2));
