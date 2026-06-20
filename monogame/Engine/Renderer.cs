@@ -94,21 +94,51 @@ public class Renderer
 
         EnsureTileTextures(th);
 
+        // Draw terrain tiles with depth-based textures
         for (int y = 0; y < level.H; y++)
         {
             for (int x = Math.Max(0, sc); x < Math.Min(ec, level.W); x++)
             {
                 var t = level.Tiles[y][x];
-                if (!t.Solid) continue;
                 int px = x * TILE - camX;
                 int py = y * TILE;
+
+                if (t.Type == "water")
+                {
+                    // Draw water tile (animated)
+                    DrawWaterTile(px, py, x, y);
+                    continue;
+                }
+                if (t.Type == "lava")
+                {
+                    // Draw lava tile (animated)
+                    DrawLavaTile(px, py, x, y);
+                    continue;
+                }
+                if (t.Type == "ice")
+                {
+                    // Draw ice tile
+                    DrawIceTile(px, py, th);
+                    continue;
+                }
+
+                if (!t.Solid) continue;
 
                 Texture2D tex;
                 if (t.Type == "ground")
                 {
-                    bool aboveAir = (y == 0) || (!level.Tiles[y - 1][x].Solid);
-                    tex = aboveAir ? _tileTextures["grass"] : _tileTextures["dirt"];
+                    // Depth-based texture selection
+                    if (t.Depth == 1)
+                        tex = _tileTextures["surface"];
+                    else if (t.Depth == 2)
+                        tex = _tileTextures["shallow"];
+                    else if (t.Depth == 3)
+                        tex = _tileTextures["deep"];
+                    else
+                        tex = _tileTextures["stone"];
                 }
+                else if (t.Type == "bedrock")
+                    tex = _tileTextures["bedrock"];
                 else if (t.Type == "plat")
                     tex = _tileTextures["plank"];
                 else
@@ -118,26 +148,63 @@ public class Renderer
             }
         }
 
-        // Draw barrels
+        // Draw decorations (behind barrels, in front of terrain)
+        DrawDecorations(level, camX);
+
+        // Draw barrels (improved with 3D effect)
         foreach (var b in level.Barrels)
         {
             if (!b.Ok) continue;
             int bx = (int)(b.X - camX - 8);
             int by = (int)(b.Y - 8);
+            
+            // Barrel shadow
+            DrawRect(new Color(0, 0, 0, 40), bx + 2, by + 14, 14, 4);
+            
+            // Barrel body (cylindrical effect)
             DrawRect(COLOR_BARREL, bx, by, 16, 16);
+            // Left highlight
+            DrawRect(new Color(180, 140, 80), bx, by, 2, 16);
+            // Right shadow
+            DrawRect(new Color(100, 70, 40), bx + 14, by, 2, 16);
+            // Top rim
+            DrawRect(new Color(140, 100, 60), bx, by, 16, 2);
+            // Bottom rim
+            DrawRect(new Color(100, 70, 40), bx, by + 14, 16, 2);
+            
+            // Hazard symbol (orange circle with black border)
             DrawRect(new Color(255, 102, 0), bx + 4, by + 4, 8, 8);
-            DrawRect(Color.Yellow, bx + 6, by + 2, 4, 4);
+            DrawRect(new Color(200, 80, 0), bx + 3, by + 4, 1, 8);
+            DrawRect(new Color(200, 80, 0), bx + 12, by + 4, 1, 8);
+            DrawRect(new Color(200, 80, 0), bx + 4, by + 3, 8, 1);
+            DrawRect(new Color(200, 80, 0), bx + 4, by + 12, 8, 1);
+            
+            // Exclamation mark
+            DrawRect(Color.Yellow, bx + 7, by + 5, 2, 4);
+            DrawRect(Color.Yellow, bx + 7, by + 10, 2, 2);
         }
 
-        // Draw exit
+        // Draw exit (improved with portal effect)
         int ex = (int)(level.ExitX - camX);
         int ey = (int)level.ExitY;
         float t_ms = Environment.TickCount;
-        int pulse = (int)(50 + 20 * Math.Sin(t_ms * 0.004f));
+        int pulse = (int)(50 + 30 * Math.Sin(t_ms * 0.004f));
+        int pulse2 = (int)(30 + 20 * Math.Sin(t_ms * 0.006f + 1));
 
-        DrawRect(new Color(0, 255, 100, pulse), ex, ey - TILE * 3, TILE, TILE * 4);
-        DrawRect(new Color(0, 255, 100, Math.Max(0, pulse - 30)), ex, ey - TILE * 5, TILE, TILE * 2);
-        DrawRect(new Color(0, 200, 0), ex, ey - 32, TILE, TILE * 2); // door frame
+        // Door frame (stone arch)
+        DrawRect(new Color(80, 80, 80), ex - 2, ey - TILE * 3 - 4, TILE + 4, 4); // top
+        DrawRect(new Color(80, 80, 80), ex - 2, ey - TILE * 3, 2, TILE * 3); // left
+        DrawRect(new Color(80, 80, 80), ex + TILE, ey - TILE * 3, 2, TILE * 3); // right
+        
+        // Portal glow (layered)
+        DrawRect(new Color(0, 255, 100, pulse / 2), ex - 4, ey - TILE * 3 - 4, TILE + 8, TILE * 3 + 8);
+        DrawRect(new Color(0, 255, 100, pulse), ex, ey - TILE * 3, TILE, TILE * 3);
+        DrawRect(new Color(100, 255, 150, pulse2), ex + 4, ey - TILE * 3 + 4, TILE - 8, TILE * 3 - 8);
+        
+        // Arrow indicator
+        int arrowY = ey - TILE * 3 - 20 + (int)(Math.Sin(t_ms * 0.005f) * 5);
+        DrawRect(new Color(255, 255, 0, 200), ex + TILE / 2 - 2, arrowY, 4, 8);
+        DrawRect(new Color(255, 255, 0, 200), ex + TILE / 2 - 4, arrowY + 4, 8, 4);
     }
 
     private void EnsureTileTextures(MapTheme theme)
@@ -147,31 +214,34 @@ public class Renderer
         _lastTheme = key;
         _tileTextures.Clear();
 
-        // Grass tile - top layer with grass and dirt below
-        _tileTextures["grass"] = CreateTileTexture(TILE, (row, col) =>
+        // Surface tile - top layer with grass/snow/sand and dirt below
+        _tileTextures["surface"] = CreateTileTexture(TILE, (row, col) =>
         {
             int seed = row * TILE + col;
-            Color grassTop = theme.Colors.TryGetValue("ground_top", out var gt) ? gt : new Color(74, 124, 89);
-            Color grassDark = new Color(
-                Math.Max(0, grassTop.R - 25), Math.Max(0, grassTop.G - 25), Math.Max(0, grassTop.B - 20));
+            Color surfaceTop = theme.Colors.TryGetValue("ground_top", out var gt) ? gt : new Color(74, 124, 89);
+            Color surfaceDark = new Color(
+                Math.Max(0, surfaceTop.R - 25), Math.Max(0, surfaceTop.G - 25), Math.Max(0, surfaceTop.B - 20));
             Color dirt = theme.Colors.TryGetValue("ground", out var gd) ? gd : new Color(101, 67, 33);
             Color dirtDark = new Color(
                 Math.Max(0, dirt.R - 20), Math.Max(0, dirt.G - 20), Math.Max(0, dirt.B - 15));
 
-            // Top rows: grass (proportional to tile size)
-            int grassRows = Math.Max(3, TILE / 5);
-            if (row < grassRows)
+            // Top rows: surface material (proportional to tile size)
+            int surfaceRows = Math.Max(4, TILE / 4);
+            if (row < surfaceRows)
             {
-                var c = Noise(grassTop, 15, 18, 12, seed);
-                // Grass blades
+                var c = Noise(surfaceTop, 15, 18, 12, seed);
+                // Surface texture details (grass blades / snow sparkle / sand grains)
                 if (row == 0 && (col % 3 == 0 || col % 5 == 0))
-                    c = Noise(new Color(grassTop.R + 20, grassTop.G + 30, grassTop.B + 10), 10, 10, 10, seed);
+                    c = Noise(new Color(surfaceTop.R + 20, surfaceTop.G + 30, surfaceTop.B + 10), 10, 10, 10, seed);
+                // Small surface details
+                if (seed % 7 == 0)
+                    c = Noise(new Color(surfaceTop.R - 10, surfaceTop.G - 10, surfaceTop.B - 5), 8, 8, 8, seed);
                 return c;
             }
             // Transition row
-            if (row == grassRows)
+            if (row == surfaceRows)
             {
-                return col % 2 == 0 ? Noise(grassDark, 10, 12, 8, seed) : Noise(dirt, 12, 10, 10, seed);
+                return col % 2 == 0 ? Noise(surfaceDark, 10, 12, 8, seed) : Noise(dirt, 12, 10, 10, seed);
             }
             // Dirt with pebbles
             var dc = Noise(dirt, 18, 15, 15, seed);
@@ -181,8 +251,8 @@ public class Renderer
             return dc;
         });
 
-        // Dirt tile - deeper underground
-        _tileTextures["dirt"] = CreateTileTexture(TILE, (row, col) =>
+        // Shallow underground tile
+        _tileTextures["shallow"] = CreateTileTexture(TILE, (row, col) =>
         {
             int seed = row * TILE + col + 1000;
             Color dirt = theme.Colors.TryGetValue("ground", out var gd2) ? gd2 : new Color(101, 67, 33);
@@ -197,6 +267,42 @@ public class Renderer
             if (seed % 19 == 0) c = Noise(stone, 10, 10, 10, seed + 120);
             // Root-like patterns
             if (row < 4 && col % 7 == row % 3) c = Noise(new Color(80, 60, 40), 8, 8, 8, seed);
+            return c;
+        });
+
+        // Deep underground tile
+        _tileTextures["deep"] = CreateTileTexture(TILE, (row, col) =>
+        {
+            int seed = row * TILE + col + 2000;
+            Color stone = new Color(80, 75, 70);
+            Color stoneDark = new Color(60, 55, 50);
+            Color stoneLight = new Color(100, 95, 90);
+
+            var c = Noise(stone, 18, 18, 18, seed);
+            // More stone, less dirt
+            if (seed % 7 == 0) c = Noise(stoneDark, 12, 12, 12, seed + 50);
+            if (seed % 11 == 0) c = Noise(stoneLight, 10, 10, 10, seed + 80);
+            // Crystal veins
+            if (seed % 29 == 0) c = Noise(new Color(120, 130, 140), 8, 8, 8, seed);
+            // Dark cracks
+            if (row % 5 == 0 && col % 4 == 0) c = Noise(stoneDark, 6, 6, 6, seed);
+            return c;
+        });
+
+        // Bedrock tile
+        _tileTextures["bedrock"] = CreateTileTexture(TILE, (row, col) =>
+        {
+            int seed = row * TILE + col + 3000;
+            Color bedrock = new Color(50, 45, 40);
+            Color bedrockDark = new Color(35, 30, 25);
+            Color bedrockLight = new Color(65, 60, 55);
+
+            var c = Noise(bedrock, 15, 15, 15, seed);
+            // Heavy texture
+            if (seed % 5 == 0) c = Noise(bedrockDark, 10, 10, 10, seed + 50);
+            if (seed % 8 == 0) c = Noise(bedrockLight, 8, 8, 8, seed + 100);
+            // Iron veins
+            if (seed % 23 == 0) c = Noise(new Color(100, 80, 60), 6, 6, 6, seed);
             return c;
         });
 
@@ -275,6 +381,642 @@ public class Renderer
             int h = 17;
             h = h * 31 + n;
             return h;
+        }
+    }
+
+    private void DrawDecorations(Level level, int camX)
+    {
+        int sc = camX / TILE;
+        int ec = sc + (W / TILE) + 2;
+
+        foreach (var dec in level.Decorations)
+        {
+            if (dec.TX < sc - 2 || dec.TX > ec + 2) continue;
+            int px = dec.TX * TILE - camX;
+            int py = dec.TY * TILE;
+
+            switch (dec.Kind)
+            {
+                case "tree":
+                    DrawTree(px, py, dec.Variant, level.Theme);
+                    break;
+                case "bush":
+                    DrawBush(px, py, dec.Variant, level.Theme);
+                    break;
+                case "flower":
+                    DrawFlower(px, py, dec.Variant);
+                    break;
+                case "rock":
+                    DrawRock(px, py, dec.Variant, level.Theme);
+                    break;
+                case "cactus":
+                    DrawCactus(px, py, dec.Variant);
+                    break;
+                case "ice":
+                    DrawIce(px, py, dec.Variant);
+                    break;
+                case "lava_pool":
+                    DrawLavaPool(px, py, dec.Variant);
+                    break;
+                case "mushroom":
+                    DrawMushroom(px, py, dec.Variant);
+                    break;
+                case "lake":
+                    DrawLakeSurface(px, py, dec.Width, dec.Variant, level.Theme);
+                    break;
+            }
+        }
+    }
+
+    private void DrawTree(int px, int py, int variant, MapTheme theme)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 40), px + TILE / 2 - 12, py - 2, 24, 4);
+
+        // Tree trunk with more detail
+        Color trunk = new Color(101, 67, 33);
+        Color trunkDark = new Color(80, 50, 20);
+        Color trunkLight = new Color(139, 90, 43);
+        int trunkW = 6;
+        int trunkH = 35 + variant * 6;
+        int trunkX = px + TILE / 2 - trunkW / 2;
+        int trunkY = py - trunkH;
+
+        // Trunk base (wider)
+        DrawRect(trunkDark, trunkX - 1, py - 4, trunkW + 2, 4);
+        
+        // Main trunk
+        DrawRect(trunk, trunkX, trunkY, trunkW, trunkH);
+        DrawRect(trunkDark, trunkX, trunkY, 1, trunkH);
+        DrawRect(trunkLight, trunkX + trunkW - 1, trunkY, 1, trunkH);
+        
+        // Bark texture
+        for (int i = 0; i < trunkH; i += 8)
+        {
+            int barkW = 2 + (i % 3);
+            DrawRect(trunkDark, trunkX + 2, trunkY + i, barkW, 1);
+        }
+
+        // Tree canopy - rounded shape using multiple layers
+        if (variant < 3)
+        {
+            // Regular tree - rounded canopy
+            Color leaf = theme.Name == "雪山" ? new Color(100, 160, 100) : new Color(34, 139, 34);
+            Color leafLight = new Color(50, 180, 50);
+            Color leafDark = new Color(0, 100, 0);
+            Color leafHighlight = new Color(100, 220, 100);
+
+            int canopyR = 14 + variant * 3;
+            int canopyCX = px + TILE / 2;
+            int canopyCY = trunkY - canopyR + 4;
+
+            // Draw rounded canopy using stacked rectangles
+            for (int layer = 0; layer < canopyR * 2; layer += 2)
+            {
+                float t = (float)layer / (canopyR * 2);
+                int layerW = (int)(canopyR * 2 * Math.Sin(t * Math.PI));
+                if (layerW < 2) continue;
+                
+                int layerY = canopyCY - canopyR + layer;
+                Color c = layer < canopyR ? leafDark : leaf;
+                if (layer > canopyR / 2 && layer < canopyR * 3 / 2)
+                    c = leafLight;
+                
+                DrawRect(c, canopyCX - layerW / 2, layerY, layerW, 2);
+            }
+
+            // Highlight spots on top
+            DrawRect(leafHighlight, canopyCX - 4, canopyCY - canopyR + 4, 3, 2);
+            DrawRect(leafHighlight, canopyCX + 2, canopyCY - canopyR + 6, 2, 2);
+
+            // Snow on top for snow map
+            if (theme.Name == "雪山")
+            {
+                Color snow = new Color(255, 255, 255);
+                Color snowShadow = new Color(220, 230, 240);
+                
+                // Snow cap
+                for (int i = 0; i < canopyR; i += 2)
+                {
+                    float t = (float)i / canopyR;
+                    int snowW = (int)(canopyR * 1.5 * Math.Sin(t * Math.PI * 0.7));
+                    if (snowW < 2) continue;
+                    DrawRect(snowShadow, canopyCX - snowW / 2, canopyCY - canopyR + i - 2, snowW, 2);
+                    DrawRect(snow, canopyCX - snowW / 2, canopyCY - canopyR + i - 3, snowW, 2);
+                }
+            }
+        }
+        else
+        {
+            // Pine tree - triangular with layered branches
+            Color pine = new Color(0, 128, 0);
+            Color pineLight = new Color(34, 139, 34);
+            Color pineDark = new Color(0, 80, 0);
+            Color pineHighlight = new Color(100, 200, 100);
+
+            int layers = 5;
+            int baseWidth = 28 + variant * 4;
+            
+            for (int i = 0; i < layers; i++)
+            {
+                int layerW = baseWidth - i * 4;
+                int layerH = 8;
+                int layerX = px + TILE / 2 - layerW / 2;
+                int layerY = trunkY - (layers - i) * (layerH - 1);
+
+                // Layer with rounded edges
+                DrawRect(pineDark, layerX, layerY + 2, layerW, layerH - 2);
+                DrawRect(pine, layerX + 1, layerY, layerW - 2, layerH - 2);
+                DrawRect(pineLight, layerX + 2, layerY - 1, layerW - 4, layerH - 3);
+                
+                // Highlight
+                DrawRect(pineHighlight, layerX + 3, layerY + 1, 4, 2);
+
+                // Snow on pine
+                if (theme.Name == "雪山")
+                {
+                    Color snow = new Color(255, 255, 255);
+                    DrawRect(snow, layerX + 2, layerY - 2, layerW - 4, 3);
+                }
+            }
+        }
+    }
+
+    private void DrawBush(int px, int py, int variant, MapTheme theme)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 40), px + TILE / 2 - 10, py - 2, 20, 3);
+
+        // Bush colors based on theme
+        Color bush = theme.Name == "雪山" ? new Color(100, 160, 100) : new Color(34, 139, 34);
+        Color bushLight = new Color(50, 180, 50);
+        Color bushDark = new Color(0, 100, 0);
+        Color bushHighlight = new Color(100, 220, 100);
+
+        int bushW = 18 + variant * 4;
+        int bushH = 14 + variant * 3;
+        int bushX = px + TILE / 2 - bushW / 2;
+        int bushY = py - bushH;
+
+        // Draw rounded bush shape using stacked rectangles
+        for (int layer = 0; layer < bushH; layer += 2)
+        {
+            float t = (float)layer / bushH;
+            int layerW = (int)(bushW * Math.Sin(t * Math.PI));
+            if (layerW < 2) continue;
+            
+            int layerY = bushY + layer;
+            Color c = layer < bushH / 3 ? bushDark : (layer < bushH * 2 / 3 ? bush : bushLight);
+            
+            DrawRect(c, bushX + (bushW - layerW) / 2, layerY, layerW, 2);
+        }
+
+        // Highlight spots
+        DrawRect(bushHighlight, bushX + 4, bushY + 4, 3, 2);
+        DrawRect(bushHighlight, bushX + bushW - 7, bushY + 5, 2, 2);
+
+        // Berries on bush (red, more visible)
+        if (variant == 0)
+        {
+            Color berry = new Color(220, 20, 60);
+            Color berryHighlight = new Color(255, 100, 100);
+            DrawRect(berry, bushX + 3, bushY + 4, 3, 3);
+            DrawRect(berryHighlight, bushX + 4, bushY + 4, 1, 1);
+            DrawRect(berry, bushX + bushW - 6, bushY + 5, 3, 3);
+            DrawRect(berryHighlight, bushX + bushW - 5, bushY + 5, 1, 1);
+            DrawRect(berry, bushX + bushW / 2, bushY + 6, 3, 3);
+            DrawRect(berryHighlight, bushX + bushW / 2 + 1, bushY + 6, 1, 1);
+        }
+    }
+
+    private void DrawFlower(int px, int py, int variant)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 30), px + TILE / 2 - 3, py - 1, 6, 2);
+
+        Color[] flowerColors = {
+            new Color(220, 80, 80),   // red
+            new Color(220, 180, 60),  // yellow
+            new Color(180, 80, 200),  // purple
+            new Color(80, 150, 220),  // blue
+        };
+        Color petal = flowerColors[variant % flowerColors.Length];
+        Color petalDark = new Color(petal.R - 40, petal.G - 40, petal.B - 40);
+        Color center = new Color(240, 220, 80);
+        Color centerDark = new Color(200, 180, 40);
+
+        int stemH = 8;
+        int stemX = px + TILE / 2;
+        int stemY = py - stemH;
+
+        // Stem with slight curve
+        DrawRect(new Color(60, 120, 40), stemX, stemY, 1, stemH);
+        DrawRect(new Color(80, 140, 60), stemX + 1, stemY + 2, 1, stemH - 2);
+
+        // Leaf on stem
+        DrawRect(new Color(60, 120, 40), stemX - 2, stemY + 4, 2, 1);
+        DrawRect(new Color(80, 140, 60), stemX - 3, stemY + 3, 2, 1);
+
+        // Flower head - draw petals in cross pattern
+        int petalSize = 3;
+        // Top petal
+        DrawRect(petal, stemX - 1, stemY - petalSize - 1, 2, petalSize);
+        DrawRect(petalDark, stemX - 1, stemY - petalSize - 1, 2, 1);
+        // Bottom petal
+        DrawRect(petal, stemX - 1, stemY + 1, 2, petalSize);
+        DrawRect(petalDark, stemX - 1, stemY + petalSize, 2, 1);
+        // Left petal
+        DrawRect(petal, stemX - petalSize - 1, stemY - 1, petalSize, 2);
+        DrawRect(petalDark, stemX - petalSize - 1, stemY - 1, 1, 2);
+        // Right petal
+        DrawRect(petal, stemX + 1, stemY - 1, petalSize, 2);
+        DrawRect(petalDark, stemX + petalSize, stemY - 1, 1, 2);
+
+        // Center
+        DrawRect(center, stemX - 1, stemY - 1, 2, 2);
+        DrawRect(centerDark, stemX, stemY, 1, 1);
+    }
+
+    private void DrawRock(int px, int py, int variant, MapTheme theme)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 40), px + TILE / 2 - 6, py - 1, 12, 2);
+
+        Color rock;
+        if (theme.Name == "火山")
+            rock = new Color(60, 40, 35);
+        else if (theme.Name == "雪山")
+            rock = new Color(140, 150, 160);
+        else if (theme.Name == "沙地")
+            rock = new Color(160, 130, 80);
+        else
+            rock = new Color(100, 100, 100);
+
+        Color rockLight = new Color(Math.Min(255, rock.R + 30), Math.Min(255, rock.G + 30), Math.Min(255, rock.B + 30));
+        Color rockDark = new Color(Math.Max(0, rock.R - 25), Math.Max(0, rock.G - 25), Math.Max(0, rock.B - 25));
+
+        int rockW = 10 + variant * 3;
+        int rockH = 7 + variant * 2;
+        int rockX = px + TILE / 2 - rockW / 2;
+        int rockY = py - rockH;
+
+        // Draw rounded rock shape
+        for (int layer = 0; layer < rockH; layer += 1)
+        {
+            float t = (float)layer / rockH;
+            int layerW = (int)(rockW * Math.Sin(t * Math.PI * 0.9 + 0.1));
+            if (layerW < 1) continue;
+            
+            int layerY = rockY + layer;
+            Color c = layer < rockH / 3 ? rockDark : (layer < rockH * 2 / 3 ? rock : rockLight);
+            
+            DrawRect(c, rockX + (rockW - layerW) / 2, layerY, layerW, 1);
+        }
+
+        // Highlight on top
+        DrawRect(rockLight, rockX + rockW / 3, rockY + 1, rockW / 3, 1);
+
+        // Skull variant for desert
+        if (variant == 3 && theme.Name == "沙地")
+        {
+            Color bone = new Color(220, 210, 190);
+            Color boneDark = new Color(180, 170, 150);
+            DrawRect(bone, rockX + 1, rockY - 3, 6, 4); // skull
+            DrawRect(boneDark, rockX + 2, rockY - 2, 1, 1); // eye
+            DrawRect(boneDark, rockX + 5, rockY - 2, 1, 1); // eye
+            DrawRect(bone, rockX + 3, rockY + 1, 3, 2); // jaw
+        }
+    }
+
+    private void DrawCactus(int px, int py, int variant)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 40), px + TILE / 2 - 6, py - 2, 12, 3);
+
+        Color cactus = new Color(60, 130, 60);
+        Color cactusLight = new Color(80, 160, 80);
+        Color cactusDark = new Color(40, 100, 40);
+        Color cactusHighlight = new Color(120, 180, 120);
+
+        int bodyW = 6;
+        int bodyH = variant == 0 ? 16 : 12;
+        int bodyX = px + TILE / 2 - bodyW / 2;
+        int bodyY = py - bodyH;
+
+        // Main body with rounded top
+        DrawRect(cactus, bodyX, bodyY + 2, bodyW, bodyH - 2);
+        DrawRect(cactusLight, bodyX + 1, bodyY + 2, 1, bodyH - 2);
+        DrawRect(cactusDark, bodyX + bodyW - 1, bodyY + 2, 1, bodyH - 2);
+        
+        // Rounded top
+        DrawRect(cactus, bodyX + 1, bodyY, bodyW - 2, 2);
+        DrawRect(cactusLight, bodyX + 2, bodyY, 1, 1);
+
+        // Arms with rounded ends
+        if (variant == 0)
+        {
+            // Left arm
+            DrawRect(cactus, bodyX - 5, bodyY + 4, 5, 3);
+            DrawRect(cactus, bodyX - 5, bodyY + 2, 3, 3);
+            DrawRect(cactusLight, bodyX - 4, bodyY + 4, 1, 3);
+            DrawRect(cactusDark, bodyX - 1, bodyY + 4, 1, 3);
+            
+            // Right arm
+            DrawRect(cactus, bodyX + bodyW, bodyY + 6, 5, 3);
+            DrawRect(cactus, bodyX + bodyW + 2, bodyY + 4, 3, 3);
+            DrawRect(cactusLight, bodyX + bodyW + 1, bodyY + 6, 1, 3);
+            DrawRect(cactusDark, bodyX + bodyW + 4, bodyY + 6, 1, 3);
+        }
+
+        // Spines (more visible)
+        Color spine = new Color(220, 220, 180);
+        DrawRect(spine, bodyX - 1, bodyY + 3, 1, 1);
+        DrawRect(spine, bodyX + bodyW, bodyY + 5, 1, 1);
+        DrawRect(spine, bodyX - 1, bodyY + 8, 1, 1);
+        DrawRect(spine, bodyX + bodyW, bodyY + 10, 1, 1);
+        DrawRect(spine, bodyX + 2, bodyY - 1, 1, 1);
+    }
+
+    private void DrawIce(int px, int py, int variant)
+    {
+        Color ice = new Color(180, 210, 240, 180);
+        Color iceLight = new Color(220, 240, 255, 200);
+        Color iceDark = new Color(140, 180, 220, 160);
+
+        int iceW = 10 + variant * 4;
+        int iceH = 3;
+        int iceX = px + TILE / 2 - iceW / 2;
+        int iceY = py - iceH;
+
+        DrawRect(ice, iceX, iceY, iceW, iceH);
+        DrawRect(iceLight, iceX + 1, iceY, iceW / 3, 1);
+        DrawRect(iceDark, iceX + iceW / 2, iceY + iceH - 1, iceW / 3, 1);
+
+        // Sparkle
+        DrawRect(new Color(255, 255, 255, 220), iceX + 2, iceY, 1, 1);
+        DrawRect(new Color(255, 255, 255, 180), iceX + iceW - 3, iceY, 1, 1);
+    }
+
+    private void DrawLavaPool(int px, int py, int variant)
+    {
+        float t = Environment.TickCount * 0.003f;
+        int pulse = (int)(20 * Math.Sin(t + variant));
+
+        Color lava = new Color(220 + pulse, 100 + pulse / 2, 20);
+        Color lavaHot = new Color(255, 180 + pulse, 60);
+        Color lavaDark = new Color(180, 60, 10);
+
+        int poolW = 12 + variant * 4;
+        int poolH = 4;
+        int poolX = px + TILE / 2 - poolW / 2;
+        int poolY = py - poolH;
+
+        DrawRect(lava, poolX, poolY, poolW, poolH);
+        DrawRect(lavaHot, poolX + 2, poolY, poolW / 3, 2);
+        DrawRect(lavaDark, poolX, poolY + poolH - 1, poolW, 1);
+
+        // Bubbles
+        int bubbleX = poolX + 3 + (int)(Math.Sin(t * 2) * 2);
+        DrawRect(lavaHot, bubbleX, poolY + 1, 2, 2);
+    }
+
+    private void DrawMushroom(int px, int py, int variant)
+    {
+        // Ground shadow
+        DrawRect(new Color(0, 0, 0, 35), px + TILE / 2 - 6, py - 1, 12, 2);
+
+        Color[] capColors = {
+            new Color(180, 60, 60),   // red
+            new Color(160, 120, 60),  // brown
+            new Color(140, 80, 160),  // purple
+        };
+        Color cap = capColors[variant % capColors.Length];
+        Color capLight = new Color(Math.Min(255, cap.R + 40), Math.Min(255, cap.G + 40), Math.Min(255, cap.B + 30));
+        Color capDark = new Color(Math.Max(0, cap.R - 30), Math.Max(0, cap.G - 30), Math.Max(0, cap.B - 30));
+        Color stem = new Color(220, 210, 190);
+        Color stemDark = new Color(190, 180, 160);
+        Color stemLight = new Color(240, 235, 220);
+
+        int stemW = 4;
+        int stemH = 6;
+        int stemX = px + TILE / 2 - stemW / 2;
+        int stemY = py - stemH - 5;
+
+        // Stem with rounded shape
+        DrawRect(stem, stemX, stemY, stemW, stemH);
+        DrawRect(stemDark, stemX, stemY, 1, stemH);
+        DrawRect(stemLight, stemX + stemW - 1, stemY, 1, stemH);
+
+        // Cap - rounded mushroom shape
+        int capW = 10 + variant * 2;
+        int capH = 5;
+        int capX = px + TILE / 2 - capW / 2;
+        int capY = stemY - capH + 1;
+
+        // Draw rounded cap using stacked rectangles
+        for (int layer = 0; layer < capH; layer++)
+        {
+            float t = (float)layer / capH;
+            int layerW = (int)(capW * Math.Sin(t * Math.PI));
+            if (layerW < 2) continue;
+            
+            int layerY = capY + layer;
+            Color c = layer < capH / 2 ? capLight : cap;
+            if (layer == capH - 1) c = capDark;
+            
+            DrawRect(c, capX + (capW - layerW) / 2, layerY, layerW, 1);
+        }
+
+        // Spots on cap (white dots)
+        Color spot = new Color(240, 230, 210);
+        DrawRect(spot, capX + 2, capY + 1, 2, 2);
+        DrawRect(spot, capX + capW - 4, capY + 1, 2, 2);
+        if (capW > 10)
+        {
+            DrawRect(spot, capX + capW / 2 - 1, capY + 2, 2, 1);
+        }
+    }
+
+    private void DrawWaterTile(int px, int py, int tileX, int tileY)
+    {
+        float t = Environment.TickCount * 0.002f;
+        int wave = (int)(Math.Sin(t + tileX * 0.5f) * 2);
+
+        // Draw opaque dark backing first so water is visible against sky
+        Color waterBacking = new Color(15, 40, 80);
+        DrawRect(waterBacking, px, py - 2, TILE, TILE + 4);
+
+        // Bright, opaque water colors
+        Color water = new Color(30, 100, 200);
+        Color waterLight = new Color(80, 170, 255);
+        Color waterDark = new Color(15, 60, 140);
+        Color waterHighlight = new Color(180, 220, 255);
+
+        // Base water (fully opaque)
+        DrawRect(water, px, py + wave, TILE, TILE);
+
+        // Wave highlights
+        int waveOffset = (int)(Math.Sin(t * 1.5f + tileX * 0.3f) * 3);
+        DrawRect(waterLight, px + 2 + waveOffset, py + 3 + wave, 6, 2);
+        DrawRect(waterLight, px + 10 - waveOffset, py + 8 + wave, 5, 2);
+
+        // Bright surface highlight line
+        DrawRect(waterHighlight, px + 1, py + 1 + wave, TILE - 2, 1);
+
+        // Darker bottom
+        DrawRect(waterDark, px, py + TILE - 4 + wave, TILE, 4);
+    }
+
+    private void DrawLavaTile(int px, int py, int tileX, int tileY)
+    {
+        float t = Environment.TickCount * 0.003f;
+        int pulse = (int)(Math.Sin(t + tileX * 0.4f) * 15);
+
+        // Dark backing for depth
+        DrawRect(new Color(100, 30, 5), px, py - 2, TILE, TILE + 4);
+
+        // Bright, opaque lava colors
+        Color lava = new Color(220 + pulse, 80 + pulse / 2, 20);
+        Color lavaHot = new Color(255, 160 + pulse, 40);
+        Color lavaDark = new Color(150, 40, 10);
+        Color lavaGlow = new Color(255, 200, 80);
+
+        // Base lava (fully opaque)
+        DrawRect(lava, px, py, TILE, TILE);
+
+        // Hot spots
+        int hotOffset = (int)(Math.Sin(t * 2 + tileX) * 2);
+        DrawRect(lavaHot, px + 3 + hotOffset, py + 4, 5, 4);
+        DrawRect(lavaHot, px + 12 - hotOffset, py + 10, 4, 3);
+
+        // Bright glow spots
+        DrawRect(lavaGlow, px + 5 + hotOffset, py + 5, 2, 2);
+
+        // Darker edges
+        DrawRect(lavaDark, px, py, TILE, 2);
+        DrawRect(lavaDark, px, py + TILE - 2, TILE, 2);
+    }
+
+    private void DrawIceTile(int px, int py, MapTheme theme)
+    {
+        Color ice = new Color(180, 220, 240);
+        Color iceLight = new Color(220, 240, 255);
+        Color iceDark = new Color(140, 180, 210);
+
+        // Base ice
+        DrawRect(ice, px, py, TILE, TILE);
+
+        // Light reflections
+        DrawRect(iceLight, px + 2, py + 3, 4, 2);
+        DrawRect(iceLight, px + 10, py + 8, 5, 2);
+        DrawRect(iceLight, px + 5, py + 14, 3, 2);
+
+        // Darker cracks
+        DrawRect(iceDark, px + 7, py + 5, 1, 6);
+        DrawRect(iceDark, px + 13, py + 10, 1, 5);
+    }
+
+    private void DrawLakeSurface(int px, int py, int width, int variant, MapTheme theme)
+    {
+        float t = Environment.TickCount * 0.002f;
+
+        // Draw shore/bank edges first (sandy/dirt border)
+        Color shore = new Color(139, 119, 101);
+        Color shoreDark = new Color(100, 80, 60);
+        Color shoreLight = new Color(180, 160, 140);
+
+        // Left shore
+        DrawRect(shoreDark, px - 3, py - 2, 4, TILE * 2 + 4);
+        DrawRect(shore, px - 2, py - 1, 3, TILE * 2 + 2);
+        DrawRect(shoreLight, px - 1, py, 1, TILE * 2);
+
+        // Right shore
+        int rightX = px + width * TILE;
+        DrawRect(shoreDark, rightX, py - 2, 4, TILE * 2 + 4);
+        DrawRect(shore, rightX + 1, py - 1, 3, TILE * 2 + 2);
+        DrawRect(shoreLight, rightX + 2, py, 1, TILE * 2);
+
+        // Water surface with waves - fully opaque and bright
+        for (int i = 0; i < width; i++)
+        {
+            int wx = px + i * TILE;
+            int wave = (int)(Math.Sin(t + i * 0.6f) * 2);
+
+            // Bright, opaque water colors
+            Color water = new Color(30, 100, 200);
+            Color waterLight = new Color(80, 170, 255);
+            Color waterDark = new Color(15, 60, 140);
+            Color waterHighlight = new Color(180, 220, 255);
+
+            // Dark backing for depth
+            DrawRect(waterDark, wx, py + wave - 2, TILE, TILE * 2 + 4);
+
+            // Water body (fully opaque)
+            DrawRect(water, wx, py + wave, TILE, TILE * 2);
+
+            // Surface highlight
+            DrawRect(waterLight, wx + 3, py + 2 + wave, TILE - 6, 3);
+
+            // Bright surface line
+            DrawRect(waterHighlight, wx + 1, py + 1 + wave, TILE - 2, 1);
+
+            // Sparkle
+            if ((i + (int)(t * 2)) % 3 == 0)
+                DrawRect(new Color(255, 255, 255), wx + 8, py + 4 + wave, 2, 2);
+        }
+
+        // Add reeds/cattails at shore edges
+        Color reed = new Color(80, 120, 60);
+        Color reedDark = new Color(60, 90, 40);
+        Color reedTip = new Color(139, 90, 43);
+
+        // Left reeds
+        for (int r = 0; r < 3; r++)
+        {
+            int rx = px - 1 + r * 2;
+            int ry = py + (int)(Math.Sin(t + r) * 2);
+            int rh = 12 + r * 3;
+            DrawRect(reedDark, rx, ry - rh, 1, rh);
+            DrawRect(reed, rx + 1, ry - rh + 2, 1, rh - 2);
+            // Cattail tip
+            DrawRect(reedTip, rx, ry - rh - 3, 2, 4);
+        }
+
+        // Right reeds
+        for (int r = 0; r < 3; r++)
+        {
+            int rx = rightX + r * 2;
+            int ry = py + (int)(Math.Sin(t + r + 1) * 2);
+            int rh = 10 + r * 2;
+            DrawRect(reedDark, rx, ry - rh, 1, rh);
+            DrawRect(reed, rx + 1, ry - rh + 2, 1, rh - 2);
+            DrawRect(reedTip, rx, ry - rh - 3, 2, 4);
+        }
+
+        // Water lilies on surface
+        Color lilyPad = new Color(34, 139, 34);
+        Color lilyPadDark = new Color(0, 100, 0);
+        Color lilyFlower = new Color(255, 182, 193);
+        Color lilyCenter = new Color(255, 215, 0);
+
+        // Place 1-2 lilies based on width
+        int lilyCount = Math.Min(2, width / 3);
+        for (int l = 0; l < lilyCount; l++)
+        {
+            int lx = px + (l + 1) * TILE * width / (lilyCount + 1);
+            int ly = py + TILE / 2 + (int)(Math.Sin(t * 0.5f + l) * 2);
+
+            // Lily pad (oval)
+            DrawRect(lilyPadDark, lx - 4, ly, 8, 4);
+            DrawRect(lilyPad, lx - 3, ly + 1, 6, 2);
+            DrawRect(lilyPadDark, lx - 2, ly + 2, 4, 1);
+
+            // Flower on top
+            if (l == 0)
+            {
+                DrawRect(lilyFlower, lx - 2, ly - 3, 4, 3);
+                DrawRect(lilyCenter, lx - 1, ly - 2, 2, 1);
+            }
         }
     }
 

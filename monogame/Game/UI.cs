@@ -8,6 +8,126 @@ using DY01.Entities;
 
 namespace DY01.Game;
 
+public class SettingsScreen
+{
+    public int Selected = 0;
+    public float Anim = 0;
+    private float _volume = 0.3f;
+    private List<(float x, float y, float speed, int size, int brightness)> _stars = new();
+    private Random _rng = new();
+
+    public SettingsScreen()
+    {
+        for (int i = 0; i < 60; i++)
+            _stars.Add((_rng.Next(0, Config.W), _rng.Next(0, Config.H),
+                (float)(_rng.NextDouble() * 0.5f + 0.1f),
+                _rng.Next(1, 3), _rng.Next(30, 120)));
+    }
+
+    public void Update()
+    {
+        Anim += 0.016f;
+        for (int i = 0; i < _stars.Count; i++)
+        {
+            var s = _stars[i];
+            s.y += s.speed;
+            if (s.y > Config.H) { s.y = -5; s.x = _rng.Next(0, Config.W); }
+            _stars[i] = s;
+        }
+    }
+
+    public void MoveUp()
+    {
+        Selected = (Selected - 1 + 2) % 2;
+        AudioManager.MenuMove();
+    }
+
+    public void MoveDown()
+    {
+        Selected = (Selected + 1) % 2;
+        AudioManager.MenuMove();
+    }
+
+    public void AdjustVolume(float delta)
+    {
+        _volume = MathHelper.Clamp(_volume + delta, 0f, 1f);
+        AudioManager.SetVolume(_volume);
+    }
+
+    public float GetVolume() => _volume;
+
+    public void Draw(Renderer renderer)
+    {
+        var sb = renderer.SpriteBatch;
+        var font = renderer.Font;
+        var pixel = renderer.Pixel;
+
+        // Background gradient
+        for (int y = 0; y < Config.H; y++)
+        {
+            float t = y / (float)Config.H;
+            int r = (int)(10 + t * 15);
+            int g = (int)(10 + t * 10);
+            int b = (int)(25 + t * 20);
+            renderer.DrawRect(new Color(r, g, b), 0, y, Config.W, 1);
+        }
+
+        // Stars
+        foreach (var s in _stars)
+        {
+            float twinkle = (float)Math.Sin(Anim * 2 + s.x * 0.1f) * 0.3f + 0.7f;
+            int brightness = (int)(s.brightness * twinkle);
+            var sc = new Color(brightness, brightness, Math.Min(255, brightness + 30));
+            renderer.DrawRect(sc, (int)s.x, (int)s.y, s.size, s.size);
+        }
+
+        // Title
+        renderer.DrawStringCentered("设置", new Vector2(Config.W / 2f, 80), new Color(255, 51, 51), 2f);
+        renderer.DrawStringCentered("使用 ↑↓ 选择，←→ 调整，Enter 返回", new Vector2(Config.W / 2f, 130), new Color(180, 180, 180), 0.9f);
+
+        // Volume setting
+        float volY = 250;
+        bool volSelected = Selected == 0;
+        
+        if (volSelected)
+        {
+            float pulse = 0.5f + 0.5f * (float)Math.Sin(Anim * 4f);
+            int bgAlpha = (int)(25 + pulse * 15);
+            renderer.DrawRect(new Color(255, 51, 51, bgAlpha), Config.W / 2 - 200, (int)volY - 10, 400, 60);
+            renderer.DrawRect(new Color(255, 51, 51, 100), Config.W / 2 - 200, (int)volY - 10, 400, 2);
+            renderer.DrawRect(new Color(255, 51, 51, 100), Config.W / 2 - 200, (int)volY + 48, 400, 2);
+        }
+
+        renderer.DrawStringCentered("音量", new Vector2(Config.W / 2f - 100, volY + 10), volSelected ? Color.White : Color.Gray, 1.2f);
+        
+        // Volume bar
+        int barX = Config.W / 2 - 50;
+        int barW = 200;
+        int barH = 20;
+        renderer.DrawRect(new Color(40, 40, 40), barX, (int)volY + 10, barW, barH);
+        renderer.DrawRect(new Color(255, 51, 51), barX, (int)volY + 10, (int)(barW * _volume), barH);
+        renderer.DrawStringCentered($"{(int)(_volume * 100)}%", new Vector2(Config.W / 2f + 150, volY + 10), Color.White, 1f);
+
+        // Back option
+        float backY = 380;
+        bool backSelected = Selected == 1;
+        
+        if (backSelected)
+        {
+            float pulse = 0.5f + 0.5f * (float)Math.Sin(Anim * 4f);
+            int bgAlpha = (int)(25 + pulse * 15);
+            renderer.DrawRect(new Color(255, 51, 51, bgAlpha), Config.W / 2 - 200, (int)backY - 10, 400, 60);
+            renderer.DrawRect(new Color(255, 51, 51, 100), Config.W / 2 - 200, (int)backY - 10, 400, 2);
+            renderer.DrawRect(new Color(255, 51, 51, 100), Config.W / 2 - 200, (int)backY + 48, 400, 2);
+        }
+
+        renderer.DrawStringCentered("返回主菜单", new Vector2(Config.W / 2f, backY + 10), backSelected ? Color.White : Color.Gray, 1.2f);
+
+        // Key hints
+        renderer.DrawStringCentered("↑/W  上移    ↓/S  下移    ←→/A D  调整    Enter  确认", new Vector2(Config.W / 2f, 500), new Color(150, 150, 150), 0.9f);
+    }
+}
+
 public class MenuScreen
 {
     public static readonly (string mode, string name, string desc)[] MENU_ITEMS = new[]
@@ -161,7 +281,7 @@ public class MenuScreen
 
 public class HUD
 {
-    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName, int combo = 0, float comboMultiplier = 1f, Level? level = null, List<Enemy>? enemies = null)
+    public void Draw(Renderer renderer, Player? player, Player? player2, int score, int kills, string waveLabel, string modeName, int combo = 0, float comboMultiplier = 1f, Level? level = null, List<Enemy>? enemies = null, int gameTime = 0, int maxCombo = 0, int bossKills = 0)
     {
         var sb = renderer.SpriteBatch;
         var font = renderer.Font;
@@ -171,9 +291,9 @@ public class HUD
         if (player != null)
         {
             // Background panel with gradient effect
-            renderer.DrawRect(new Color(0, 0, 0, 180), 8, 8, 200, 56);
+            renderer.DrawRect(new Color(0, 0, 0, 180), 8, 8, 200, 70);
             renderer.DrawRect(new Color(255, 51, 51, 100), 8, 8, 200, 2);
-            renderer.DrawRect(new Color(255, 51, 51, 50), 8, 62, 200, 2);
+            renderer.DrawRect(new Color(255, 51, 51, 50), 8, 76, 200, 2);
             
             float hpR = player.Hp / player.MaxHpActual;
             // HP bar background
@@ -186,14 +306,27 @@ public class HUD
 
             renderer.DrawString($"HP {(int)player.Hp}/{(int)player.MaxHpActual}", new Vector2(20, 28), Color.White, 0.8f);
             renderer.DrawString($"KILLS {kills}", new Vector2(20, 42), new Color(255, 200, 100), 0.8f);
+            
+            // Game time display
+            int minutes = gameTime / 60;
+            int seconds = gameTime % 60;
+            renderer.DrawString($"TIME {minutes}:{seconds:D2}", new Vector2(20, 56), new Color(180, 220, 255), 0.8f);
         }
 
         // Score/Wave with enhanced styling
-        renderer.DrawRect(new Color(0, 0, 0, 180), Config.W - 208, 8, 200, 40);
+        renderer.DrawRect(new Color(0, 0, 0, 180), Config.W - 208, 8, 200, 54);
         renderer.DrawRect(new Color(255, 170, 0, 100), Config.W - 208, 8, 200, 2);
-        renderer.DrawRect(new Color(255, 170, 0, 50), Config.W - 208, 46, 200, 2);
+        renderer.DrawRect(new Color(255, 170, 0, 50), Config.W - 208, 60, 200, 2);
         renderer.DrawString($"SCORE {score}", new Vector2(Config.W - 200, 10), new Color(255, 220, 100), 0.8f);
         renderer.DrawString($"{waveLabel}  {modeName}", new Vector2(Config.W - 200, 28), Color.White, 0.8f);
+        
+        // Statistics display
+        if (maxCombo > 0 || bossKills > 0)
+        {
+            renderer.DrawString($"MAX COMBO {maxCombo}", new Vector2(Config.W - 200, 44), new Color(255, 150, 150), 0.7f);
+            if (bossKills > 0)
+                renderer.DrawString($"BOSS KILLS {bossKills}", new Vector2(Config.W - 200, 56), new Color(255, 100, 100), 0.7f);
+        }
 
         // Combo display
         if (combo > 0)

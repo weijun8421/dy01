@@ -17,6 +17,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private Renderer _renderer = null!;
     private InputManager _input = null!;
     private ParticleSystem _particles = null!;
+    private WeatherSystem _weather = null!;
     private SpriteFont? _font;
 
     // UI
@@ -24,9 +25,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private HUD _hud = null!;
     private BuffSelectScreen _buffScreen = null!;
     private WeaponSelectScreen _weaponScreen = null!;
+    private SettingsScreen _settingsScreen = null!;
 
     // Game state
-    private enum State { Menu, WeaponSelect, Playing, Paused, Buff, GameOver, Victory }
+    private enum State { Menu, WeaponSelect, Playing, Paused, Buff, GameOver, Victory, Settings }
     private State _state = State.Menu;
     private string _mode = "campaign";
     private Player? _player;
@@ -65,6 +67,12 @@ public class GameMain : Microsoft.Xna.Framework.Game
     private int _slowMotionTimer = 0;
     private float _slowMotionScale = 1.0f;
 
+    // Game over stats
+    private int _gameStartTime;
+    private int _gameEndTime;
+    private int _maxCombo;
+    private int _bossKills;
+
     // Campaign map system
     private int _mapIdx, _mapLevel = 1;
     private const int MAP_LEVELS = 5;
@@ -86,6 +94,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
     {
         _input = new InputManager();
         _particles = new ParticleSystem();
+        _weather = new WeatherSystem();
 
         base.Initialize();
     }
@@ -109,6 +118,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _hud = new HUD();
         _buffScreen = new BuffSelectScreen();
         _weaponScreen = new WeaponSelectScreen();
+        _settingsScreen = new SettingsScreen();
     }
 
     protected override void Update(GameTime gameTime)
@@ -138,6 +148,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
             case State.Victory:
                 UpdateVictory();
                 break;
+            case State.Settings:
+                UpdateSettings();
+                break;
         }
 
         base.Update(gameTime);
@@ -154,6 +167,10 @@ public class GameMain : Microsoft.Xna.Framework.Game
             _levelNum = 1; _waveNum = 1; _mapIdx = 0; _mapLevel = 1;
             _firstBuff = true;
             _state = State.WeaponSelect;
+        }
+        else if (_input.Pressed("key_s"))
+        {
+            _state = State.Settings;
         }
     }
 
@@ -254,6 +271,7 @@ public class GameMain : Microsoft.Xna.Framework.Game
 
         // Particles and explosions
         _particles.Update();
+        _weather.Update(_renderer.Camera);
         _explosions.RemoveAll(e => !e.Update());
         ApplyExplosionDamage();
 
@@ -348,6 +366,26 @@ public class GameMain : Microsoft.Xna.Framework.Game
         }
     }
 
+    private void UpdateSettings()
+    {
+        _settingsScreen.Update();
+        if (_input.Pressed("up")) _settingsScreen.MoveUp();
+        else if (_input.Pressed("down")) _settingsScreen.MoveDown();
+        else if (_input.Pressed("left")) _settingsScreen.AdjustVolume(-0.05f);
+        else if (_input.Pressed("right")) _settingsScreen.AdjustVolume(0.05f);
+        else if (_input.Pressed("enter"))
+        {
+            if (_settingsScreen.Selected == 1) // 返回主菜单
+            {
+                _state = State.Menu;
+            }
+        }
+        else if (_input.Pressed("escape"))
+        {
+            _state = State.Menu;
+        }
+    }
+
     private string MapName()
     {
         if (_mapIdx < Level.MAP_ORDER.Length)
@@ -360,6 +398,12 @@ public class GameMain : Microsoft.Xna.Framework.Game
         _state = State.Playing;
         _score = Math.Max(0, _score);
         _waveDone = false;
+
+        // Initialize game stats
+        _gameStartTime = Environment.TickCount;
+        _gameEndTime = 0;
+        _maxCombo = 0;
+        _bossKills = 0;
 
         _level = new Level();
         _level.Generate(_levelNum, _mapIdx);
@@ -460,16 +504,20 @@ public class GameMain : Microsoft.Xna.Framework.Game
             if (_mode == "endless" && _waveNum > 3)
             {
                 if (roll < 0.08) etype = "heavy";
-                else if (roll < 0.28) etype = "elite";
-                else if (roll < 0.42) etype = "flyer";
-                else if (roll < 0.55) etype = "shooter";
+                else if (roll < 0.20) etype = "bomber";
+                else if (roll < 0.32) etype = "healer";
+                else if (roll < 0.48) etype = "elite";
+                else if (roll < 0.62) etype = "flyer";
+                else if (roll < 0.75) etype = "shooter";
             }
             else if (_levelNum > 3 || _mapIdx > 0)
             {
-                if (roll < 0.15) etype = "elite";
-                else if (roll < 0.28) etype = "flyer";
-                else if (roll < 0.35 && _levelNum > 5) etype = "heavy";
-                else if (roll < 0.48) etype = "shooter";
+                if (roll < 0.12) etype = "elite";
+                else if (roll < 0.22) etype = "bomber";
+                else if (roll < 0.32) etype = "healer";
+                else if (roll < 0.45) etype = "flyer";
+                else if (roll < 0.58) etype = "shooter";
+                else if (roll < 0.68 && _levelNum > 5) etype = "heavy";
             }
             
             if (_mode == "endless" && _waveNum % 5 == 0 && _waveNum >= 5 && _enemies.Count == 0)
@@ -632,6 +680,13 @@ public class GameMain : Microsoft.Xna.Framework.Game
                         _comboTimer = 180; // 3 seconds at 60fps
                         _comboMultiplier = 1f + MathF.Min(_combo * 0.1f, 2f); // Max 3x multiplier
                         _score += (int)(e.Score * _comboMultiplier);
+                        
+                        // Track max combo
+                        if (_combo > _maxCombo) _maxCombo = _combo;
+                        
+                        // Track boss kills
+                        if (e.Type == "boss") _bossKills++;
+                        
                         var owner = b.OwnerId == "p1" ? _player : _player2;
                         if (owner != null && owner.BuffVampire > 0) owner.Heal(owner.BuffVampire);
                         _renderer.Camera.AddShake(4);
@@ -698,6 +753,39 @@ public class GameMain : Microsoft.Xna.Framework.Game
         {
             if (!b.Update()) continue;
 
+            // 治疗子弹：治疗附近的敌人
+            if (b.OwnerId == "heal")
+            {
+                bool healed = false;
+                foreach (var e in _enemies)
+                {
+                    if (e.Type == "healer") continue; // 不治疗自己
+                    float dist = MathF.Sqrt((b.X - e.X) * (b.X - e.X) + (b.Y - e.Y) * (b.Y - e.Y));
+                    if (dist < 30 && e.Hp < e.MaxHp)
+                    {
+                        // 治疗敌人
+                        float healAmount = Math.Abs(b.Weapon.Damage);
+                        e.Hp = Math.Min(e.MaxHp, e.Hp + healAmount);
+                        _particles.SpawnBurst(e.X, e.Y - e.H / 2f, 5, 2, new Color(100, 255, 100), (10, 20), (2, 4), (-3, 0));
+                        _particles.SpawnText(e.X, e.Y - e.H, $"+{(int)healAmount}", new Color(100, 255, 100), 12);
+                        healed = true;
+                        break;
+                    }
+                }
+                if (healed) continue;
+                
+                // 治疗子弹碰到地形消失
+                var (tx, ty) = Physics.AabbVsTiles(b.X, b.Y, 4, 4, _level!);
+                if (tx.HasValue && ty.HasValue)
+                {
+                    _particles.SpawnBurst(b.X, b.Y, 3, 2, new Color(100, 255, 100), (5, 12), (1, 3), (-2, 1));
+                    continue;
+                }
+                
+                newBullets.Add(b);
+                continue;
+            }
+
             bool hitSomething = false;
             
             // Check collision with players
@@ -725,8 +813,8 @@ public class GameMain : Microsoft.Xna.Framework.Game
             if (hitSomething) continue;
 
             // Tile collision
-            var (tx, ty) = Physics.AabbVsTiles(b.X, b.Y, 4, 4, _level!);
-            if (tx.HasValue && ty.HasValue)
+            var (tx2, ty2) = Physics.AabbVsTiles(b.X, b.Y, 4, 4, _level!);
+            if (tx2.HasValue && ty2.HasValue)
             {
                 _particles.SpawnBurst(b.X, b.Y, 3, 2, new Color(255, 153, 51), (5, 12), (1, 3), (-2, 1));
                 continue;
@@ -849,6 +937,9 @@ public class GameMain : Microsoft.Xna.Framework.Game
 
             // Particles
             _particles.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX, _font);
+            
+            // Weather (drawn on top of everything)
+            _weather.Draw(sb, _renderer.Pixel, _renderer.Camera.OffsetX);
 
             // Crosshairs
             if (_state == State.Playing)
@@ -864,7 +955,11 @@ public class GameMain : Microsoft.Xna.Framework.Game
                 string waveLabel = _mode == "campaign"
                     ? $"{MapName()} {_mapLevel}/{MAP_LEVELS}"
                     : $"WAVE {_waveNum}";
-                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper(), _combo, _comboMultiplier, _level, _enemies);
+                
+                // Calculate game time in seconds
+                int elapsedSec = (_gameEndTime > 0 ? _gameEndTime : Environment.TickCount - _gameStartTime) / 1000;
+                
+                _hud.Draw(_renderer, _player, _player2, _score, _kills, waveLabel, _mode.ToUpper(), _combo, _comboMultiplier, _level, _enemies, elapsedSec, _maxCombo, _bossKills);
             }
 
             // Exit hint

@@ -394,8 +394,9 @@ public class Player
         int sx = (int)(X - camX), sy = (int)Y;
         int f = Facing;
 
-        // Shadow
-        sb.Draw(pixel, new Rectangle(sx - 10, sy + 16, 20, 4), new Color(0, 0, 0, 60));
+        // Shadow (larger, more defined)
+        sb.Draw(pixel, new Rectangle(sx - 12, sy + 18, 24, 4), new Color(0, 0, 0, 50));
+        sb.Draw(pixel, new Rectangle(sx - 10, sy + 17, 20, 2), new Color(0, 0, 0, 70));
 
         // Leg animation
         int legOff = 0;
@@ -405,78 +406,125 @@ public class Player
         }
         else legOff = -4;
 
-        // === BOOTS (detailed with soles) ===
+        // === BOOTS (detailed with laces and soles) ===
         // Left boot
         sb.Draw(pixel, new Rectangle(sx - 8 + legOff, sy + 14, 7, 5), new Color(50, 40, 30));
         sb.Draw(pixel, new Rectangle(sx - 9 + legOff, sy + 18, 9, 2), new Color(30, 25, 20)); // sole
+        sb.Draw(pixel, new Rectangle(sx - 7 + legOff, sy + 15, 1, 3), new Color(70, 60, 50)); // lace
+        sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 15, 1, 3), new Color(70, 60, 50)); // lace
         // Right boot
         sb.Draw(pixel, new Rectangle(sx + 1 - legOff, sy + 14, 7, 5), new Color(50, 40, 30));
         sb.Draw(pixel, new Rectangle(sx - legOff, sy + 18, 9, 2), new Color(30, 25, 20)); // sole
+        sb.Draw(pixel, new Rectangle(sx + 2 - legOff, sy + 15, 1, 3), new Color(70, 60, 50)); // lace
+        sb.Draw(pixel, new Rectangle(sx + 4 - legOff, sy + 15, 1, 3), new Color(70, 60, 50)); // lace
 
-        // === LEGS (pants with knee pads) ===
+        // === LEGS (pants with knee pads and shading) ===
         // Left leg
         sb.Draw(pixel, new Rectangle(sx - 7 + legOff, sy + 7, 6, 8), new Color(55, 70, 100));
+        sb.Draw(pixel, new Rectangle(sx - 7 + legOff, sy + 7, 2, 8), new Color(45, 60, 90)); // shadow
         sb.Draw(pixel, new Rectangle(sx - 6 + legOff, sy + 9, 4, 3), new Color(75, 75, 75)); // knee pad
+        sb.Draw(pixel, new Rectangle(sx - 5 + legOff, sy + 10, 2, 1), new Color(95, 95, 95)); // pad highlight
         // Right leg
         sb.Draw(pixel, new Rectangle(sx + 1 - legOff, sy + 7, 6, 8), new Color(55, 70, 100));
+        sb.Draw(pixel, new Rectangle(sx + 5 - legOff, sy + 7, 2, 8), new Color(45, 60, 90)); // shadow
         sb.Draw(pixel, new Rectangle(sx + 2 - legOff, sy + 9, 4, 3), new Color(75, 75, 75)); // knee pad
+        sb.Draw(pixel, new Rectangle(sx + 3 - legOff, sy + 10, 2, 1), new Color(95, 95, 95)); // pad highlight
 
-        // === BELT with buckle ===
+        // === BELT with detailed buckle ===
         sb.Draw(pixel, new Rectangle(sx - 9, sy + 5, 18, 3), new Color(70, 50, 30));
+        sb.Draw(pixel, new Rectangle(sx - 9, sy + 5, 18, 1), new Color(90, 70, 50)); // belt highlight
         sb.Draw(pixel, new Rectangle(sx - 3, sy + 5, 6, 3), new Color(210, 180, 60)); // buckle
+        sb.Draw(pixel, new Rectangle(sx - 2, sy + 6, 4, 1), new Color(240, 210, 90)); // buckle highlight
 
-        // === BODY (tactical vest with details) ===
+        // === BODY (tactical vest with more details) ===
         sb.Draw(pixel, new Rectangle(sx - 9, sy - 10, 18, 16), Color);
-        // Vest stripes (horizontal details)
+        // Vest shading
         var vestDark = new Color(Math.Max(0, Color.R - 35), Math.Max(0, Color.G - 35), Math.Max(0, Color.B - 35));
+        var vestLight = new Color(Math.Min(255, Color.R + 20), Math.Min(255, Color.G + 20), Math.Min(255, Color.B + 20));
+        sb.Draw(pixel, new Rectangle(sx - 9, sy - 10, 3, 16), vestDark); // left shadow
+        sb.Draw(pixel, new Rectangle(sx + 6, sy - 10, 3, 16), vestDark); // right shadow
+        // Vest stripes (horizontal details)
         sb.Draw(pixel, new Rectangle(sx - 8, sy - 8, 16, 2), vestDark);
         sb.Draw(pixel, new Rectangle(sx - 8, sy - 3, 16, 2), vestDark);
         sb.Draw(pixel, new Rectangle(sx - 8, sy + 2, 16, 2), vestDark);
+        // Chest pocket
+        sb.Draw(pixel, new Rectangle(sx - 6, sy - 6, 4, 4), vestDark);
+        sb.Draw(pixel, new Rectangle(sx - 5, sy - 5, 2, 2), vestLight); // pocket highlight
         
-        // Shoulder pads
+        // Shoulder pads (with highlights)
         var shoulderColor = new Color(Math.Max(0, Color.R - 45), Math.Max(0, Color.G - 45), Math.Max(0, Color.B - 45));
+        var shoulderHighlight = new Color(Math.Min(255, Color.R + 10), Math.Min(255, Color.G + 10), Math.Min(255, Color.B + 10));
         sb.Draw(pixel, new Rectangle(sx - 11, sy - 9, 4, 6), shoulderColor);
+        sb.Draw(pixel, new Rectangle(sx - 11, sy - 9, 4, 2), shoulderHighlight);
         sb.Draw(pixel, new Rectangle(sx + 7, sy - 9, 4, 6), shoulderColor);
+        sb.Draw(pixel, new Rectangle(sx + 7, sy - 9, 4, 2), shoulderHighlight);
 
-        // === HEAD (detailed face) ===
+        // === HEAD (detailed face with more features) ===
         // Head base
         sb.Draw(pixel, new Rectangle(sx - 6, sy - 21, 12, 12), SkinColor);
+        // Face shading
+        var skinDark = new Color(Math.Max(0, SkinColor.R - 30), Math.Max(0, SkinColor.G - 30), Math.Max(0, SkinColor.B - 30));
+        sb.Draw(pixel, new Rectangle(sx - 6, sy - 21, 2, 12), skinDark); // left shadow
+        sb.Draw(pixel, new Rectangle(sx + 4, sy - 21, 2, 12), skinDark); // right shadow
         
-        // Hair/helmet
+        // Hair/helmet (with highlights)
         sb.Draw(pixel, new Rectangle(sx - 8, sy - 24, 16, 5), HairColor);
+        sb.Draw(pixel, new Rectangle(sx - 8, sy - 24, 16, 2), new Color(Math.Min(255, HairColor.R + 30), Math.Min(255, HairColor.G + 30), Math.Min(255, HairColor.B + 30))); // highlight
         sb.Draw(pixel, new Rectangle(sx - 8, sy - 21, 4, 9), HairColor); // left side
         sb.Draw(pixel, new Rectangle(sx + 4, sy - 21, 4, 9), HairColor); // right side
         
-        // Eyes (two separate eyes)
-        sb.Draw(pixel, new Rectangle(sx - 4 + f, sy - 17, 3, 2), new Color(20, 20, 20));
-        sb.Draw(pixel, new Rectangle(sx + 1 + f, sy - 17, 3, 2), new Color(20, 20, 20));
+        // Eyes (two separate eyes with whites)
+        sb.Draw(pixel, new Rectangle(sx - 4 + f, sy - 17, 3, 2), Color.White); // eye white
+        sb.Draw(pixel, new Rectangle(sx + 1 + f, sy - 17, 3, 2), Color.White); // eye white
+        sb.Draw(pixel, new Rectangle(sx - 4 + f, sy - 17, 2, 2), new Color(20, 20, 20)); // pupil
+        sb.Draw(pixel, new Rectangle(sx + 1 + f, sy - 17, 2, 2), new Color(20, 20, 20)); // pupil
         // Eye highlights
         sb.Draw(pixel, new Rectangle(sx - 3 + f, sy - 17, 1, 1), new Color(220, 255, 220));
         sb.Draw(pixel, new Rectangle(sx + 2 + f, sy - 17, 1, 1), new Color(220, 255, 220));
         
-        // Mouth
-        sb.Draw(pixel, new Rectangle(sx - 2 + f, sy - 12, 5, 2), new Color(160, 110, 80));
+        // Eyebrows
+        sb.Draw(pixel, new Rectangle(sx - 4 + f, sy - 19, 3, 1), new Color(40, 30, 20));
+        sb.Draw(pixel, new Rectangle(sx + 1 + f, sy - 19, 3, 1), new Color(40, 30, 20));
+        
+        // Nose
+        sb.Draw(pixel, new Rectangle(sx - 1 + f, sy - 15, 2, 2), skinDark);
+        
+        // Mouth (with teeth when berserk)
+        if (IsBerserk)
+        {
+            sb.Draw(pixel, new Rectangle(sx - 2 + f, sy - 12, 5, 2), new Color(120, 40, 40)); // open mouth
+            sb.Draw(pixel, new Rectangle(sx - 1 + f, sy - 12, 3, 1), Color.White); // teeth
+        }
+        else
+        {
+            sb.Draw(pixel, new Rectangle(sx - 2 + f, sy - 12, 5, 2), new Color(160, 110, 80));
+        }
 
-        // === ARM holding weapon ===
+        // === ARM holding weapon (with muscle definition) ===
         sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 10, 5, 11), SkinColor);
-        // Glove
+        sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 10, 2, 11), skinDark); // arm shadow
+        sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 6, 5, 2), new Color(Math.Min(255, SkinColor.R + 15), Math.Min(255, SkinColor.G + 15), Math.Min(255, SkinColor.B + 15))); // muscle highlight
+        // Glove (with details)
         sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 2, 5, 3), new Color(45, 45, 45));
+        sb.Draw(pixel, new Rectangle(sx + f * 9, sy - 2, 5, 1), new Color(65, 65, 65)); // glove highlight
         
         // === WEAPON (type-specific) ===
         DrawWeapon(sb, pixel, sx, sy, f);
 
         // === EFFECTS ===
-        // Berserk aura
+        // Berserk aura (pulsing)
         if (IsBerserk)
         {
-            var auraColor = new Color(255, 0, 0, 40);
+            float pulse = (float)Math.Sin(Anim * 0.2f) * 0.3f + 0.7f;
+            var auraColor = new Color(255, 0, 0, (int)(40 * pulse));
             DrawCircle(sb, pixel, sx, sy - 2, 25, auraColor);
         }
 
-        // Shield indicator
+        // Shield indicator (shimmering)
         if (BuffShield && _shieldReady)
         {
-            var shieldColor = new Color(100, 200, 255, 60);
+            float shimmer = (float)Math.Sin(Anim * 0.15f) * 0.3f + 0.7f;
+            var shieldColor = new Color(100, 200, 255, (int)(60 * shimmer));
             DrawCircle(sb, pixel, sx, sy - 2, 20, shieldColor);
         }
     }

@@ -11,6 +11,16 @@ public class TileData
     public bool Solid;
     public int HP;
     public int X, Y;
+    public int Depth; // 0=air, 1=surface, 2+=underground
+}
+
+public class Decoration
+{
+    public string Kind = ""; // "tree", "bush", "rock", "flower", "cactus", "ice", "lava_pool", "mushroom", "lake"
+    public int TX, TY; // tile position
+    public int Variant; // visual variant
+    public int Width = 1; // for lakes
+    public int Height = 1;
 }
 
 public class BarrelData
@@ -36,6 +46,7 @@ public class Level
     public List<List<TileData>> Tiles = new();
     public int W, H;
     public List<BarrelData> Barrels = new();
+    public List<Decoration> Decorations = new();
     public float ExitX, ExitY;
     public MapTheme Theme = new();
     private Random _rng = new();
@@ -190,7 +201,12 @@ public class Level
             {
                 // Bottom 2 rows are indestructible bedrock
                 bool bedrock = y >= H - 2;
-                Tiles[y][x] = new TileData { Type = bedrock ? "bedrock" : "ground", Solid = true, HP = bedrock ? 999 : 5, X = x, Y = y };
+                int depth = 0;
+                if (y == groundProfile[x]) depth = 1; // surface
+                else if (y < groundProfile[x] + 3) depth = 2; // shallow underground
+                else if (y < groundProfile[x] + 6) depth = 3; // medium underground
+                else depth = 4; // deep underground
+                Tiles[y][x] = new TileData { Type = bedrock ? "bedrock" : "ground", Solid = true, HP = bedrock ? 999 : 5, X = x, Y = y, Depth = depth };
             }
 
         // Add caves (underground chambers)
@@ -356,6 +372,9 @@ public class Level
                 if (y >= 0 && y < H && x >= 0 && x < W)
                     if (Tiles[y][x].Type is "wall" or "plat")
                         Tiles[y][x] = new TileData { Type = "air", Solid = false, HP = 0, X = x, Y = y };
+
+        // Generate decorations based on map theme
+        GenerateDecorations(mapIdx, groundProfile, gy);
     }
 
     private void MakeStairs(int startX, int gy, int[] groundProfile, int maxJumpTiles, int lv)
@@ -382,6 +401,149 @@ public class Level
                     Tiles[cy][x] = new TileData { Type = "plat", Solid = true, HP = 2, X = x, Y = cy };
 
             cx += pw + _rng.Next(1, 4);
+        }
+    }
+
+    private void GenerateDecorations(int mapIdx, int[] groundProfile, int gy)
+    {
+        Decorations = new();
+        string mapKey = MAP_ORDER[Math.Min(mapIdx, MAP_ORDER.Length - 1)];
+
+        // Plains decorations - more visible
+        if (mapKey == "plains")
+        {
+            // Trees - much larger and more frequent
+            for (int x = 12; x < W - 8; x++)
+            {
+                int surfaceY = groundProfile[Math.Min(x, groundProfile.Length - 1)];
+
+                // Trees - 8% chance, very tall
+                if (_rng.NextDouble() < 0.08 && x > 15 && x < W - 15)
+                {
+                    bool blocked = false;
+                    for (int dy = 1; dy <= 6; dy++)
+                        if (surfaceY - dy >= 0 && Tiles[surfaceY - dy][x].Solid) { blocked = true; break; }
+                    if (!blocked)
+                        Decorations.Add(new Decoration { Kind = "tree", TX = x, TY = surfaceY, Variant = _rng.Next(3) });
+                }
+                // Bushes - 10% chance
+                if (_rng.NextDouble() < 0.10)
+                {
+                    bool blocked = false;
+                    for (int dy = 1; dy <= 2; dy++)
+                        if (surfaceY - dy >= 0 && Tiles[surfaceY - dy][x].Solid) { blocked = true; break; }
+                    if (!blocked)
+                        Decorations.Add(new Decoration { Kind = "bush", TX = x, TY = surfaceY, Variant = _rng.Next(2) });
+                }
+                // Flowers - 15% chance
+                if (_rng.NextDouble() < 0.15)
+                    Decorations.Add(new Decoration { Kind = "flower", TX = x, TY = surfaceY, Variant = _rng.Next(4) });
+                // Rocks - 5% chance
+                if (_rng.NextDouble() < 0.05)
+                    Decorations.Add(new Decoration { Kind = "rock", TX = x, TY = surfaceY, Variant = _rng.Next(3) });
+            }
+        }
+
+        // Desert decorations
+        if (mapKey == "desert")
+        {
+            // Cacti and rocks
+            for (int x = 12; x < W - 8; x++)
+            {
+                int surfaceY = groundProfile[Math.Min(x, groundProfile.Length - 1)];
+
+                // Cacti - 5% chance, very tall
+                if (_rng.NextDouble() < 0.05 && x > 15 && x < W - 15)
+                {
+                    bool blocked = false;
+                    for (int dy = 1; dy <= 4; dy++)
+                        if (surfaceY - dy >= 0 && Tiles[surfaceY - dy][x].Solid) { blocked = true; break; }
+                    if (!blocked)
+                        Decorations.Add(new Decoration { Kind = "cactus", TX = x, TY = surfaceY, Variant = _rng.Next(2) });
+                }
+                // Rocks - 8% chance
+                if (_rng.NextDouble() < 0.08)
+                    Decorations.Add(new Decoration { Kind = "rock", TX = x, TY = surfaceY, Variant = _rng.Next(3) });
+                // Skull/bones - 2% chance
+                if (_rng.NextDouble() < 0.02)
+                    Decorations.Add(new Decoration { Kind = "rock", TX = x, TY = surfaceY, Variant = 3 });
+            }
+        }
+
+        // Snow decorations
+        if (mapKey == "snow")
+        {
+            // Pine trees and snow features
+            for (int x = 12; x < W - 8; x++)
+            {
+                int surfaceY = groundProfile[Math.Min(x, groundProfile.Length - 1)];
+
+                // Pine trees - 6% chance, very tall
+                if (_rng.NextDouble() < 0.06 && x > 15 && x < W - 15)
+                {
+                    bool blocked = false;
+                    for (int dy = 1; dy <= 6; dy++)
+                        if (surfaceY - dy >= 0 && Tiles[surfaceY - dy][x].Solid) { blocked = true; break; }
+                    if (!blocked)
+                        Decorations.Add(new Decoration { Kind = "tree", TX = x, TY = surfaceY, Variant = _rng.Next(2) + 3 });
+                }
+                // Snow rocks - 5% chance
+                if (_rng.NextDouble() < 0.05)
+                    Decorations.Add(new Decoration { Kind = "rock", TX = x, TY = surfaceY, Variant = _rng.Next(2) });
+                // Snow mounds - 8% chance
+                if (_rng.NextDouble() < 0.08)
+                    Decorations.Add(new Decoration { Kind = "ice", TX = x, TY = surfaceY, Variant = _rng.Next(2) });
+            }
+        }
+
+        // Volcano decorations
+        if (mapKey == "volcano")
+        {
+            // Add lava rivers (2-3 per map)
+            int lavaCount = 2 + _rng.Next(2);
+            for (int i = 0; i < lavaCount; i++)
+            {
+                int lavaX = _rng.Next(20, W - 25);
+                int lavaW = _rng.Next(5, 9);
+                int lavaDepth = _rng.Next(2, 4);
+
+                // Create lava river
+                for (int x = lavaX; x < lavaX + lavaW && x < W; x++)
+                {
+                    int surfY = groundProfile[x];
+                    for (int dy = 0; dy < lavaDepth; dy++)
+                    {
+                        int y = surfY + dy;
+                        if (y < H - 2 && Tiles[y][x].Type == "ground")
+                        {
+                            Tiles[y][x] = new TileData { Type = "lava", Solid = false, HP = 0, X = x, Y = y };
+                        }
+                    }
+                    groundProfile[x] = surfY + lavaDepth;
+                }
+
+                Decorations.Add(new Decoration
+                {
+                    Kind = "lava_pool",
+                    TX = lavaX,
+                    TY = groundProfile[lavaX] - 1,
+                    Variant = lavaW,
+                    Width = lavaW
+                });
+            }
+
+            // Mushrooms and rocks
+            for (int x = 12; x < W - 8; x++)
+            {
+                int surfaceY = groundProfile[Math.Min(x, groundProfile.Length - 1)];
+
+                // Mushrooms - 8% chance, large
+                if (_rng.NextDouble() < 0.08)
+                    Decorations.Add(new Decoration { Kind = "mushroom", TX = x, TY = surfaceY, Variant = _rng.Next(3) });
+                // Rocks - 10% chance
+                if (_rng.NextDouble() < 0.10)
+                    Decorations.Add(new Decoration { Kind = "rock", TX = x, TY = surfaceY, Variant = _rng.Next(3) });
+            }
         }
     }
 

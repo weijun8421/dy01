@@ -142,6 +142,8 @@ public static class Config
         ["heavy"] = new EnemyTypeDef { W = 30, H = 32, HP = 130, Speed = 0.6f, Damage = 22, Color = new Color(136, 34, 34), Score = 500 },
         ["flyer"] = new EnemyTypeDef { W = 18, H = 22, HP = 22, Speed = 2.2f, Damage = 10, Color = new Color(136, 68, 204), Score = 300, Fly = true },
         ["shooter"] = new EnemyTypeDef { W = 18, H = 28, HP = 20, Speed = 0.8f, Damage = 12, Color = new Color(255, 153, 51), Score = 200 },
+        ["bomber"] = new EnemyTypeDef { W = 22, H = 26, HP = 35, Speed = 2.5f, Damage = 40, Color = new Color(255, 100, 0), Score = 350 },
+        ["healer"] = new EnemyTypeDef { W = 20, H = 28, HP = 40, Speed = 1.0f, Damage = 5, Color = new Color(100, 255, 100), Score = 400 },
         ["boss"] = new EnemyTypeDef { W = 55, H = 55, HP = 900, Speed = 0.7f, Damage = 30, Color = new Color(102, 0, 0), Score = 5000 },
     };
 
